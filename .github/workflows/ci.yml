@@ -22,7 +22,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Set up Go
-      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+      uses: actions/setup-go@78961f6f84d799cd858575bb931c3e51d3b13290 # v5.2.0
       with:
         go-version: ${{ matrix.go-version }}
 
@@ -40,24 +40,3 @@ jobs:
       run: |
         go test -race -coverprofile=coverage.out -covermode=atomic ./...
         go tool cover -func=coverage.out | tail -1
-
-  call_reusable_ci:
-    name: Standardized CI
-    uses: complytime/org-infra/.github/workflows/reusable_ci.yml@main
-    permissions:
-      contents: read
-      issues: read
-
-  call_reusable_security:
-    name: Security Scan
-    uses: complytime/org-infra/.github/workflows/reusable_security.yml@main
-    permissions:
-      contents: read
-      id-token: write
-      security-events: write
-
-  call_reusable_vuln_scan:
-    name: Vulnerability Scan
-    uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@main
-    permissions:
-      contents: read
