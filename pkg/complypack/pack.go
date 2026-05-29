@@ -87,8 +87,10 @@ func Pack(ctx context.Context, store content.Storage, cfg Config, content io.Rea
 		return ocispec.Descriptor{}, fmt.Errorf("packing manifest: %w", err)
 	}
 
-	// TODO: Handle signing if options.signingKeyPath or options.keylessIdentity set
-	// For now, return unsigned manifest
+	// Sign if requested
+	if err := sign(ctx, store, manifestDesc, options); err != nil {
+		return ocispec.Descriptor{}, err
+	}
 
 	return manifestDesc, nil
 }
