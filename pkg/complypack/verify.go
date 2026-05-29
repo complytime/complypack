@@ -39,7 +39,7 @@ func validateVerificationOptions(opts *unpackOptions) error {
 
 // verify checks the signature on the OCI artifact using sigstore.
 // TODO: Implement actual sigstore-go integration.
-func verify(ctx context.Context, store content.ReadOnlyStorage, desc ocispec.Descriptor, opts *unpackOptions) error {
+func verify(_ context.Context, _ content.ReadOnlyStorage, _ ocispec.Descriptor, opts *unpackOptions) error {
 	if err := validateVerificationOptions(opts); err != nil {
 		return err
 	}

@@ -39,7 +39,7 @@ func TestUnpackRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unpack() error = %v", err)
 	}
-	defer result.Content.Close()
+	defer func() { _ = result.Content.Close() }()
 
 	// Verify config
 	if result.Config.EvaluatorID != cfg.EvaluatorID {
@@ -85,7 +85,7 @@ func TestUnpackMinimal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unpack() error = %v", err)
 	}
-	defer result.Content.Close()
+	defer func() { _ = result.Content.Close() }()
 
 	// Verify no provenance
 	if result.Config.Source != nil {

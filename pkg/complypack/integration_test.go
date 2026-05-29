@@ -46,7 +46,7 @@ func TestIntegrationMemoryStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unpack() error = %v", err)
 	}
-	defer result.Content.Close()
+	defer func() { _ = result.Content.Close() }()
 
 	// Verify round-trip
 	if result.Config.EvaluatorID != cfg.EvaluatorID {
@@ -82,13 +82,13 @@ func TestIntegrationFileStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	store, err := file.New(tmpDir)
 	if err != nil {
 		t.Fatalf("file.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Pack
 	cfg := complypack.Config{
@@ -107,7 +107,7 @@ func TestIntegrationFileStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unpack() error = %v", err)
 	}
-	defer result.Content.Close()
+	defer func() { _ = result.Content.Close() }()
 
 	// Verify
 	if result.Config.EvaluatorID != cfg.EvaluatorID {
@@ -144,7 +144,7 @@ func TestIntegrationLargeContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unpack() error = %v", err)
 	}
-	defer result.Content.Close()
+	defer func() { _ = result.Content.Close() }()
 
 	unpackedContent, err := io.ReadAll(result.Content)
 	if err != nil {

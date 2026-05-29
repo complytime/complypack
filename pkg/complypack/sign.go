@@ -34,7 +34,7 @@ func validateSigningOptions(opts *packOptions) error {
 
 // sign attaches a signature to the OCI artifact using sigstore.
 // TODO: Implement actual sigstore-go integration.
-func sign(ctx context.Context, store content.Storage, desc ocispec.Descriptor, opts *packOptions) error {
+func sign(_ context.Context, _ content.Storage, _ ocispec.Descriptor, opts *packOptions) error {
 	if err := validateSigningOptions(opts); err != nil {
 		return err
 	}

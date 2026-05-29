@@ -28,9 +28,9 @@ type ComplyPack struct {
 // IMPORTANT: The returned ComplyPack.Content is an io.ReadCloser that MUST be
 // closed by the caller to avoid resource leaks:
 //
-//     result, err := complypack.Unpack(ctx, store, desc)
-//     if err != nil { return err }
-//     defer result.Content.Close()  // Required!
+//	result, err := complypack.Unpack(ctx, store, desc)
+//	if err != nil { return err }
+//	defer result.Content.Close()  // Required!
 //
 // Options:
 //   - WithVerification(keyPath) enables keyed signature verification

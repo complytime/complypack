@@ -1,6 +1,6 @@
 module github.com/complytime/complypack
 
-go 1.26.3
+go 1.23.0
 
 require (
 	github.com/opencontainers/go-digest v1.0.0
