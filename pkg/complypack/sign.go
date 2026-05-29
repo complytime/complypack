@@ -4,7 +4,6 @@ package complypack
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -47,12 +46,12 @@ func sign(ctx context.Context, store content.Storage, desc ocispec.Descriptor, o
 
 	// TODO: Implement keyed signing with sigstore-go
 	if opts.signingKeyPath != "" {
-		return errors.New("keyed signing not yet implemented")
+		return fmt.Errorf("%w: keyed signing not yet implemented", ErrSigningFailed)
 	}
 
 	// TODO: Implement keyless signing with sigstore-go
 	if opts.keylessIdentity != "" {
-		return errors.New("keyless signing not yet implemented")
+		return fmt.Errorf("%w: keyless signing not yet implemented", ErrSigningFailed)
 	}
 
 	return nil

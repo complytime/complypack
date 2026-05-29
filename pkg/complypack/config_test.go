@@ -54,6 +54,30 @@ func TestConfigValidation(t *testing.T) {
 			cfg:     complypack.Config{},
 			wantErr: true,
 		},
+		{
+			name: "provenance with empty gemara-content",
+			cfg: complypack.Config{
+				EvaluatorID: "io.complytime.opa",
+				Version:     "1.0.0",
+				Source: &complypack.Provenance{
+					GemaraContent: "",
+					PolicyID:      "policy-123",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "provenance with empty policy-id",
+			cfg: complypack.Config{
+				EvaluatorID: "io.complytime.opa",
+				Version:     "1.0.0",
+				Source: &complypack.Provenance{
+					GemaraContent: "oci://registry/gemara/controls:latest",
+					PolicyID:      "",
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

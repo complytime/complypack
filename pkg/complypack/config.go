@@ -24,10 +24,10 @@ type Config struct {
 type Provenance struct {
 	// GemaraContent is the URI or hash of the Gemara catalog.
 	// Examples: "oci://registry/gemara/controls:latest", "sha256:abc123..."
-	GemaraContent string `json:"gemara_content"`
+	GemaraContent string `json:"gemara-content"`
 
 	// PolicyID identifies the policy within the Gemara catalog.
-	PolicyID string `json:"policy_id"`
+	PolicyID string `json:"policy-id"`
 }
 
 // Validate checks that required Config fields are present.
@@ -38,6 +38,14 @@ func (c Config) Validate() error {
 	}
 	if c.Version == "" {
 		return fmt.Errorf("%w: version is required", ErrInvalidConfig)
+	}
+	if c.Source != nil {
+		if c.Source.GemaraContent == "" {
+			return fmt.Errorf("%w: source.gemara-content is required when source is set", ErrInvalidConfig)
+		}
+		if c.Source.PolicyID == "" {
+			return fmt.Errorf("%w: source.policy-id is required when source is set", ErrInvalidConfig)
+		}
 	}
 	return nil
 }

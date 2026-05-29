@@ -25,6 +25,13 @@ type ComplyPack struct {
 // Unpack extracts a ComplyPack's config and content from an OCI store.
 // The descriptor must point to an OCI manifest with a ComplyPack config layer.
 //
+// IMPORTANT: The returned ComplyPack.Content is an io.ReadCloser that MUST be
+// closed by the caller to avoid resource leaks:
+//
+//     result, err := complypack.Unpack(ctx, store, desc)
+//     if err != nil { return err }
+//     defer result.Content.Close()  // Required!
+//
 // Options:
 //   - WithVerification(keyPath) enables keyed signature verification
 //   - WithKeylessVerification(cert, issuer, identity) enables OIDC-based verification

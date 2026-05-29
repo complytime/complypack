@@ -4,7 +4,6 @@ package complypack
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -52,12 +51,12 @@ func verify(ctx context.Context, store content.ReadOnlyStorage, desc ocispec.Des
 
 	// TODO: Implement keyed verification with sigstore-go
 	if opts.verifyKeyPath != "" {
-		return errors.New("keyed verification not yet implemented")
+		return fmt.Errorf("%w: keyed verification not yet implemented", ErrVerificationFailed)
 	}
 
 	// TODO: Implement keyless verification with sigstore-go
 	if opts.verifyCertPath != "" {
-		return errors.New("keyless verification not yet implemented")
+		return fmt.Errorf("%w: keyless verification not yet implemented", ErrVerificationFailed)
 	}
 
 	return nil

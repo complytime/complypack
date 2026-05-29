@@ -21,6 +21,10 @@ import (
 // The content is stored as a single layer with MediaTypeContent.
 // The config is stored with MediaTypeConfig.
 //
+// Memory Usage: Pack loads the entire content into memory for digest calculation.
+// For large policy bundles (>100MB), this may cause memory pressure. Consider
+// the memory requirements when packing large artifacts.
+//
 // Options:
 //   - WithSigning(keyPath) enables keyed signing
 //   - WithKeylessSigning(identity, issuer) enables OIDC-based keyless signing
