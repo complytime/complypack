@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/complytime/complypack/pkg/complypack"
 )
 
@@ -83,8 +86,10 @@ func TestConfigValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.cfg.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -101,27 +106,17 @@ func TestConfigJSON(t *testing.T) {
 	}
 
 	data, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	var decoded complypack.Config
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("Unmarshal() error = %v", err)
-	}
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
 
-	if decoded.EvaluatorID != cfg.EvaluatorID {
-		t.Errorf("EvaluatorID = %q, want %q", decoded.EvaluatorID, cfg.EvaluatorID)
-	}
-	if decoded.Version != cfg.Version {
-		t.Errorf("Version = %q, want %q", decoded.Version, cfg.Version)
-	}
-	if decoded.Source == nil {
-		t.Fatal("Source is nil after unmarshal")
-	}
-	if decoded.Source.GemaraContent != cfg.Source.GemaraContent {
-		t.Errorf("GemaraContent = %q, want %q", decoded.Source.GemaraContent, cfg.Source.GemaraContent)
-	}
+	assert.Equal(t, cfg.EvaluatorID, decoded.EvaluatorID)
+	assert.Equal(t, cfg.Version, decoded.Version)
+	require.NotNil(t, decoded.Source)
+	assert.Equal(t, cfg.Source.GemaraContent, decoded.Source.GemaraContent)
+	assert.Equal(t, cfg.Source.PolicyID, decoded.Source.PolicyID)
 }
 
 func TestConfigJSONOmitEmpty(t *testing.T) {
@@ -132,17 +127,13 @@ func TestConfigJSONOmitEmpty(t *testing.T) {
 	}
 
 	data, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify source is omitted when nil
 	var raw map[string]interface{}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		t.Fatalf("Unmarshal to map error = %v", err)
-	}
+	err = json.Unmarshal(data, &raw)
+	require.NoError(t, err)
 
-	if _, exists := raw["source"]; exists {
-		t.Error("source field should be omitted when nil")
-	}
+	_, exists := raw["source"]
+	assert.False(t, exists, "source field should be omitted when nil")
 }

@@ -5,11 +5,12 @@ package complypack_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2/content/memory"
 
 	"github.com/complytime/complypack/pkg/complypack"
@@ -27,20 +28,12 @@ func TestPackMinimal(t *testing.T) {
 	content := strings.NewReader("fake policy content")
 
 	desc, err := complypack.Pack(ctx, store, cfg, content)
-	if err != nil {
-		t.Fatalf("Pack() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify descriptor returned
-	if desc.Digest == "" {
-		t.Error("descriptor has empty digest")
-	}
-	if desc.Size == 0 {
-		t.Error("descriptor has zero size")
-	}
-	if desc.MediaType != ocispec.MediaTypeImageManifest {
-		t.Errorf("descriptor MediaType = %q, want %q", desc.MediaType, ocispec.MediaTypeImageManifest)
-	}
+	assert.NotEmpty(t, desc.Digest, "descriptor should have a digest")
+	assert.NotZero(t, desc.Size, "descriptor should have a size")
+	assert.Equal(t, ocispec.MediaTypeImageManifest, desc.MediaType)
 }
 
 func TestPackWithProvenance(t *testing.T) {
@@ -59,13 +52,8 @@ func TestPackWithProvenance(t *testing.T) {
 	content := strings.NewReader("fake policy content")
 
 	desc, err := complypack.Pack(ctx, store, cfg, content)
-	if err != nil {
-		t.Fatalf("Pack() error = %v", err)
-	}
-
-	if desc.Digest == "" {
-		t.Error("descriptor has empty digest")
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, desc.Digest)
 }
 
 func TestPackWithAnnotations(t *testing.T) {
@@ -85,13 +73,8 @@ func TestPackWithAnnotations(t *testing.T) {
 	}
 
 	desc, err := complypack.Pack(ctx, store, cfg, content, complypack.WithAnnotations(annotations))
-	if err != nil {
-		t.Fatalf("Pack() error = %v", err)
-	}
-
-	if desc.Digest == "" {
-		t.Error("descriptor has empty digest")
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, desc.Digest)
 }
 
 func TestPackErrors(t *testing.T) {
@@ -105,12 +88,8 @@ func TestPackErrors(t *testing.T) {
 		content := strings.NewReader("content")
 
 		_, err := complypack.Pack(ctx, store, cfg, content)
-		if err == nil {
-			t.Error("expected error for empty evaluator-id")
-		}
-		if !strings.Contains(err.Error(), "evaluator-id") {
-			t.Errorf("error should mention evaluator-id, got: %v", err)
-		}
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "evaluator-id")
 	})
 
 	t.Run("invalid config - empty version", func(t *testing.T) {
@@ -120,12 +99,8 @@ func TestPackErrors(t *testing.T) {
 		content := strings.NewReader("content")
 
 		_, err := complypack.Pack(ctx, store, cfg, content)
-		if err == nil {
-			t.Error("expected error for empty version")
-		}
-		if !strings.Contains(err.Error(), "version") {
-			t.Errorf("error should mention version, got: %v", err)
-		}
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "version")
 	})
 
 	t.Run("empty content", func(t *testing.T) {
@@ -136,9 +111,7 @@ func TestPackErrors(t *testing.T) {
 		content := bytes.NewReader([]byte{})
 
 		_, err := complypack.Pack(ctx, store, cfg, content)
-		if !errors.Is(err, complypack.ErrEmptyContent) {
-			t.Errorf("Pack() error = %v, want ErrEmptyContent", err)
-		}
+		assert.ErrorIs(t, err, complypack.ErrEmptyContent)
 	})
 
 	t.Run("content too large", func(t *testing.T) {
@@ -150,21 +123,6 @@ func TestPackErrors(t *testing.T) {
 		largeContent := strings.NewReader(strings.Repeat("x", complypack.MaxContentSize+1))
 
 		_, err := complypack.Pack(ctx, store, cfg, largeContent)
-		if !errors.Is(err, complypack.ErrContentTooLarge) {
-			t.Errorf("Pack() error = %v, want ErrContentTooLarge", err)
-		}
-	})
-
-	t.Run("empty content - old test", func(t *testing.T) {
-		cfg := complypack.Config{
-			EvaluatorID: "io.complytime.opa",
-			Version:     "1.0.0",
-		}
-		content := bytes.NewReader([]byte{})
-
-		_, err := complypack.Pack(ctx, store, cfg, content)
-		if err == nil {
-			t.Error("expected error for empty content")
-		}
+		assert.ErrorIs(t, err, complypack.ErrContentTooLarge)
 	})
 }

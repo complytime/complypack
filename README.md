@@ -17,11 +17,50 @@ ComplyPack is a Go library for packing, unpacking, signing, and verifying OCI ar
 
 ## Installation
 
+### Library
+
 ```bash
 go get github.com/complytime/complypack
 ```
 
-## Quick Start
+### CLI
+
+```bash
+go install github.com/complytime/complypack/cmd/complypack@latest
+```
+
+## CLI Usage
+
+### Pulling Gemara Catalogs from OCI Registries
+
+The `complypack` CLI can pull Gemara control catalogs from OCI registries:
+
+```bash
+# Pull and output to stdout
+complypack catalog pull ghcr.io/org/controls:v1.0
+
+# Save to a file
+complypack catalog pull ghcr.io/org/controls:v1.0 --output controls.yaml
+
+# Pull from a local registry
+complypack catalog pull http://localhost:5000/controls:latest --plain-http
+```
+
+#### Authentication
+
+The CLI uses the Docker credential chain (same as `docker login`):
+
+```bash
+docker login ghcr.io
+complypack catalog pull ghcr.io/org/controls:v1.0
+```
+
+Supports:
+- Docker credential helpers (`credHelpers`)
+- Docker credential store (`credsStore`)
+- Docker config file (`auths`)
+
+## Library Quick Start
 
 ### Packing a Policy
 
