@@ -13,17 +13,25 @@ func TestLoadConfig_ValidConfigWithAllFields(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
-	configContent := `platform: oscal
-gemara-catalogs:
-  - name: nist-800-53
-    path: ./catalogs/nist-800-53.yaml
-  - name: custom-controls
-    path: ./catalogs/custom.yaml
-platform-schemas:
-  - name: component-definition
-    path: ./schemas/component-definition.json
-  - name: ssp
-    path: ./schemas/ssp.json
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: catalogs/nist-800-53.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+  - path: schemas/terraform.cue
+    platform: terraform
+policies:
+  dir: policies/
+  helpers:
+    - policies/helpers.rego
+tests:
+  dir: tests/
+fixtures:
+  dir: fixtures/
+output:
+  dir: dist/
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
@@ -31,23 +39,30 @@ platform-schemas:
 	config, err := LoadConfig(configPath)
 	require.NoError(t, err)
 	assert.NotNil(t, config)
-	assert.Equal(t, "oscal", config.Platform)
-	assert.Len(t, config.GemaraCatalogs, 2)
-	assert.Equal(t, "nist-800-53", config.GemaraCatalogs[0].Name)
-	assert.Equal(t, "./catalogs/nist-800-53.yaml", config.GemaraCatalogs[0].Path)
-	assert.Len(t, config.PlatformSchemas, 2)
-	assert.Equal(t, "component-definition", config.PlatformSchemas[0].Name)
-	assert.Equal(t, "./schemas/component-definition.json", config.PlatformSchemas[0].Path)
+	assert.Equal(t, "io.complytime.opa", config.EvaluatorID)
+	assert.Equal(t, "0.1.0", config.Version)
+	assert.Equal(t, "catalogs/nist-800-53.yaml", config.Gemara.Source)
+	assert.Len(t, config.Schemas, 2)
+	assert.Equal(t, "schemas/kubernetes.cue", config.Schemas[0].Path)
+	assert.Equal(t, "kubernetes", config.Schemas[0].Platform)
+	assert.NotNil(t, config.Policies)
+	assert.Equal(t, "policies/", config.Policies.Dir)
+	assert.Len(t, config.Policies.Helpers, 1)
+	assert.NotNil(t, config.Tests)
+	assert.Equal(t, "tests/", config.Tests.Dir)
 }
 
 func TestLoadConfig_MinimalConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
-	configContent := `platform: oscal
-gemara-catalogs:
-  - name: nist-800-53
-    path: ./catalogs/nist-800-53.yaml
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
@@ -55,18 +70,121 @@ gemara-catalogs:
 	config, err := LoadConfig(configPath)
 	require.NoError(t, err)
 	assert.NotNil(t, config)
-	assert.Equal(t, "oscal", config.Platform)
-	assert.Len(t, config.GemaraCatalogs, 1)
-	assert.Empty(t, config.PlatformSchemas)
+	assert.Equal(t, "io.complytime.opa", config.EvaluatorID)
+	assert.Equal(t, "0.1.0", config.Version)
+	assert.Equal(t, "catalogs/controls.yaml", config.Gemara.Source)
+	assert.Len(t, config.Schemas, 1)
+	assert.Nil(t, config.Policies)
+	assert.Nil(t, config.Tests)
 }
 
-func TestLoadConfig_MissingPlatform(t *testing.T) {
+func TestLoadConfig_MissingEvaluatorID(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
-	configContent := `gemara-catalogs:
-  - name: nist-800-53
-    path: ./catalogs/nist-800-53.yaml
+	configContent := `version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, config)
+	assert.Contains(t, err.Error(), "evaluator-id")
+}
+
+func TestLoadConfig_MissingVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `evaluator-id: io.complytime.opa
+gemara:
+  source: catalogs/controls.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, config)
+	assert.Contains(t, err.Error(), "version")
+}
+
+func TestLoadConfig_MissingGemaraSource(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, config)
+	assert.Contains(t, err.Error(), "gemara.source")
+}
+
+func TestLoadConfig_MissingSchemas(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, config)
+	assert.Contains(t, err.Error(), "schemas")
+}
+
+func TestLoadConfig_SchemaMissingPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+schemas:
+  - platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, config)
+	assert.Contains(t, err.Error(), "path")
+}
+
+func TestLoadConfig_SchemaMissingPlatform(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+schemas:
+  - path: schemas/kubernetes.cue
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
@@ -75,21 +193,6 @@ func TestLoadConfig_MissingPlatform(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, config)
 	assert.Contains(t, err.Error(), "platform")
-}
-
-func TestLoadConfig_MissingCatalogs(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "complypack.yaml")
-
-	configContent := `platform: oscal
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0600)
-	require.NoError(t, err)
-
-	config, err := LoadConfig(configPath)
-	assert.Error(t, err)
-	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "gemara-catalogs")
 }
 
 func TestLoadConfig_FileNotFound(t *testing.T) {

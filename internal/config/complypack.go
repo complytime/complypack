@@ -7,23 +7,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// CatalogRef represents a reference to a Gemara catalog file.
-type CatalogRef struct {
-	Name string `yaml:"name"`
-	Path string `yaml:"path"`
+// SchemaRef represents a platform schema with its path and platform identifier.
+type SchemaRef struct {
+	Path     string `yaml:"path"`
+	Platform string `yaml:"platform"`
 }
 
-// SchemaRef represents a reference to a platform schema file.
-type SchemaRef struct {
-	Name string `yaml:"name"`
-	Path string `yaml:"path"`
+// GemaraConfig represents Gemara catalog source configuration.
+type GemaraConfig struct {
+	Source string `yaml:"source"`
 }
 
 // ComplyPackConfig represents the structure of complypack.yaml.
+// Aligned with CEP-0001 and complypack-pipeline specification.
 type ComplyPackConfig struct {
-	Platform        string       `yaml:"platform"`
-	GemaraCatalogs  []CatalogRef `yaml:"gemara-catalogs"`
-	PlatformSchemas []SchemaRef  `yaml:"platform-schemas"`
+	EvaluatorID string         `yaml:"evaluator-id"`
+	Version     string         `yaml:"version"`
+	Gemara      GemaraConfig   `yaml:"gemara"`
+	Schemas     []SchemaRef    `yaml:"schemas"`
+	Policies    *DirConfig     `yaml:"policies,omitempty"`
+	Tests       *DirConfig     `yaml:"tests,omitempty"`
+	Fixtures    *DirConfig     `yaml:"fixtures,omitempty"`
+	Output      *DirConfig     `yaml:"output,omitempty"`
+}
+
+// DirConfig represents a directory configuration.
+type DirConfig struct {
+	Dir     string   `yaml:"dir"`
+	Helpers []string `yaml:"helpers,omitempty"`
 }
 
 // LoadConfig reads and parses a complypack.yaml file.
@@ -47,12 +58,30 @@ func LoadConfig(path string) (*ComplyPackConfig, error) {
 
 // Validate checks that required fields are present.
 func (c *ComplyPackConfig) Validate() error {
-	if c.Platform == "" {
-		return fmt.Errorf("missing required field: platform")
+	if c.EvaluatorID == "" {
+		return fmt.Errorf("missing required field: evaluator-id")
 	}
 
-	if len(c.GemaraCatalogs) == 0 {
-		return fmt.Errorf("missing required field: gemara-catalogs")
+	if c.Version == "" {
+		return fmt.Errorf("missing required field: version")
+	}
+
+	if c.Gemara.Source == "" {
+		return fmt.Errorf("missing required field: gemara.source")
+	}
+
+	if len(c.Schemas) == 0 {
+		return fmt.Errorf("missing required field: schemas")
+	}
+
+	// Validate each schema has required fields
+	for i, schema := range c.Schemas {
+		if schema.Path == "" {
+			return fmt.Errorf("schema %d missing required field: path", i)
+		}
+		if schema.Platform == "" {
+			return fmt.Errorf("schema %d missing required field: platform", i)
+		}
 	}
 
 	return nil

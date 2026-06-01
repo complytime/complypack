@@ -54,37 +54,32 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Load catalogs from local file paths
+	// Load Gemara catalog from source
 	catalogs := make(map[string][]byte)
-	for _, catRef := range cfg.GemaraCatalogs {
-		data, err := os.ReadFile(catRef.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read catalog %q at %s: %w", catRef.Name, catRef.Path, err)
-		}
-
-		// Extract catalog name from metadata.id
-		catalogName, err := extractCatalogName(data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract catalog name from %s: %w", catRef.Path, err)
-		}
-
-		// Check for duplicates
-		if _, exists := catalogs[catalogName]; exists {
-			return nil, fmt.Errorf("duplicate catalog name %q", catalogName)
-		}
-
-		catalogs[catalogName] = data
+	data, err := os.ReadFile(cfg.Gemara.Source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read catalog at %s: %w", cfg.Gemara.Source, err)
 	}
 
-	// Load platform schemas
+	// Extract catalog name from metadata.id
+	catalogName, err := extractCatalogName(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract catalog name from %s: %w", cfg.Gemara.Source, err)
+	}
+
+	catalogs[catalogName] = data
+
+	// Load all built-in platform schemas
 	schemaMap, err := loadSchemas()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load schemas: %w", err)
 	}
 
-	// Validate platform is supported
-	if _, ok := schemaMap[cfg.Platform]; !ok {
-		return nil, fmt.Errorf("unsupported platform %q (available: %v)", cfg.Platform, schemas.BuiltInPlatforms)
+	// Validate that configured schemas reference valid platforms
+	for _, schemaRef := range cfg.Schemas {
+		if _, ok := schemaMap[schemaRef.Platform]; !ok {
+			return nil, fmt.Errorf("schema references unsupported platform %q (available: %v)", schemaRef.Platform, schemas.BuiltInPlatforms)
+		}
 	}
 
 	// Create resource store

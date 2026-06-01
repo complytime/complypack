@@ -29,11 +29,15 @@ func TestNewServer(t *testing.T) {
 
 		// Create config file
 		configPath := filepath.Join(t.TempDir(), "complypack.yaml")
-		configYAML := `platform: kubernetes
-gemara-catalogs:
-  - name: controls-v1
-    path: ` + filepath.Join(ociStore, "controls-v1", "catalog.yaml")
-		err := os.WriteFile(configPath, []byte(configYAML), 0644)
+		configYAML := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: ` + filepath.Join(ociStore, "controls-v1", "catalog.yaml") + `
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+`
+		err := os.WriteFile(configPath, []byte(configYAML), 0600)
 		require.NoError(t, err)
 
 		// Create server
@@ -63,11 +67,15 @@ gemara-catalogs:
 		ociStore := t.TempDir()
 
 		configPath := filepath.Join(t.TempDir(), "complypack.yaml")
-		configYAML := `platform: kubernetes
-gemara-catalogs:
-  - name: missing-catalog
-    path: /nonexistent/catalog.yaml`
-		err := os.WriteFile(configPath, []byte(configYAML), 0644)
+		configYAML := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: /nonexistent/catalog.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+`
+		err := os.WriteFile(configPath, []byte(configYAML), 0600)
 		require.NoError(t, err)
 
 		srv, err := NewServer(ctx, &ServerOptions{
@@ -91,11 +99,15 @@ gemara-catalogs:
 		})
 
 		configPath := filepath.Join(t.TempDir(), "complypack.yaml")
-		configYAML := `platform: unsupported-platform
-gemara-catalogs:
-  - name: controls-v1
-    path: ` + filepath.Join(ociStore, "controls-v1", "catalog.yaml")
-		err := os.WriteFile(configPath, []byte(configYAML), 0644)
+		configYAML := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: ` + filepath.Join(ociStore, "controls-v1", "catalog.yaml") + `
+schemas:
+  - path: schemas/invalid.cue
+    platform: unsupported-platform
+`
+		err := os.WriteFile(configPath, []byte(configYAML), 0600)
 		require.NoError(t, err)
 
 		srv, err := NewServer(ctx, &ServerOptions{
@@ -110,39 +122,7 @@ gemara-catalogs:
 		assert.Contains(t, err.Error(), "unsupported platform")
 	})
 
-	t.Run("error on duplicate catalog names", func(t *testing.T) {
-		cacheDir := t.TempDir()
-		ociStore := t.TempDir()
-
-		// Create two bundles with same catalog name
-		createMockCatalogBundle(t, ociStore, "bundle1", map[string]string{
-			"catalog.yaml": mockControlsCatalog, // Has id: controls-v1
-		})
-		createMockCatalogBundle(t, ociStore, "bundle2", map[string]string{
-			"catalog.yaml": mockControlsCatalog, // Same id: controls-v1
-		})
-
-		configPath := filepath.Join(t.TempDir(), "complypack.yaml")
-		configYAML := `platform: kubernetes
-gemara-catalogs:
-  - name: controls-v1
-    path: ` + filepath.Join(ociStore, "bundle1", "catalog.yaml") + `
-  - name: controls-v1-dup
-    path: ` + filepath.Join(ociStore, "bundle2", "catalog.yaml")
-		err := os.WriteFile(configPath, []byte(configYAML), 0644)
-		require.NoError(t, err)
-
-		srv, err := NewServer(ctx, &ServerOptions{
-			ConfigPath: configPath,
-			OCIStore:   ociStore,
-			CacheDir:   cacheDir,
-			PlainHTTP:  true,
-		})
-
-		assert.Error(t, err)
-		assert.Nil(t, srv)
-		assert.Contains(t, err.Error(), "duplicate catalog")
-	})
+	// Removed: duplicate catalog test - no longer applicable with single source config
 }
 
 func TestExtractCatalogName(t *testing.T) {

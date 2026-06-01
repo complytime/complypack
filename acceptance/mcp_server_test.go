@@ -47,16 +47,22 @@ controls:
     title: Account Management
     description: Manage information system accounts.
 `
-		err = os.WriteFile(catalogPath, []byte(catalogContent), 0644)
+		err = os.WriteFile(catalogPath, []byte(catalogContent), 0600)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create config file
 		configPath = filepath.Join(tempDir, "complypack.yaml")
-		configContent := `platform: kubernetes
-gemara-catalogs:
-  - name: test-catalog
-    path: ` + catalogPath
-		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		configContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: ` + catalogPath + `
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
+  - path: schemas/terraform.cue
+    platform: terraform
+`
+		err = os.WriteFile(configPath, []byte(configContent), 0600)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -92,12 +98,15 @@ gemara-catalogs:
 
 		It("should fail with missing catalog file", func() {
 			badConfigPath := filepath.Join(tempDir, "bad-config.yaml")
-			badConfigContent := `platform: kubernetes
-gemara-catalogs:
-  - name: missing-catalog
-    path: /nonexistent/catalog.yaml
+			badConfigContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: /nonexistent/catalog.yaml
+schemas:
+  - path: schemas/kubernetes.cue
+    platform: kubernetes
 `
-			err := os.WriteFile(badConfigPath, []byte(badConfigContent), 0644)
+			err := os.WriteFile(badConfigPath, []byte(badConfigContent), 0600)
 			Expect(err).NotTo(HaveOccurred())
 
 			opts := &mcp.ServerOptions{
@@ -114,11 +123,15 @@ gemara-catalogs:
 		It("should fail with unsupported platform", func() {
 			unsupportedConfigPath := filepath.Join(tempDir, "unsupported-config.yaml")
 			catalogPath := filepath.Join(catalogDir, "test-catalog.yaml")
-			unsupportedConfigContent := `platform: unsupported-platform
-gemara-catalogs:
-  - name: test-catalog
-    path: ` + catalogPath
-			err := os.WriteFile(unsupportedConfigPath, []byte(unsupportedConfigContent), 0644)
+			unsupportedConfigContent := `evaluator-id: io.complytime.opa
+version: 0.1.0
+gemara:
+  source: ` + catalogPath + `
+schemas:
+  - path: schemas/invalid.cue
+    platform: unsupported-platform
+`
+			err := os.WriteFile(unsupportedConfigPath, []byte(unsupportedConfigContent), 0600)
 			Expect(err).NotTo(HaveOccurred())
 
 			opts := &mcp.ServerOptions{
@@ -132,42 +145,7 @@ gemara-catalogs:
 			Expect(err.Error()).To(ContainSubstring("unsupported platform"))
 		})
 
-		It("should fail with duplicate catalog names", func() {
-			// Create second catalog with same ID
-			secondCatalogPath := filepath.Join(catalogDir, "duplicate-catalog.yaml")
-			duplicateCatalogContent := `metadata:
-  id: test-catalog
-  version: 2.0.0
-  gemara-version: 0.20.0
-  type: ControlCatalog
-controls:
-  - id: AC-3
-    title: Access Enforcement
-    description: Enforce access control.
-`
-			err := os.WriteFile(secondCatalogPath, []byte(duplicateCatalogContent), 0644)
-			Expect(err).NotTo(HaveOccurred())
-
-			duplicateConfigPath := filepath.Join(tempDir, "duplicate-config.yaml")
-			duplicateConfigContent := `platform: kubernetes
-gemara-catalogs:
-  - name: catalog-1
-    path: ` + filepath.Join(catalogDir, "test-catalog.yaml") + `
-  - name: catalog-2
-    path: ` + secondCatalogPath
-			err = os.WriteFile(duplicateConfigPath, []byte(duplicateConfigContent), 0644)
-			Expect(err).NotTo(HaveOccurred())
-
-			opts := &mcp.ServerOptions{
-				ConfigPath: duplicateConfigPath,
-				CacheDir:   filepath.Join(tempDir, "cache"),
-			}
-
-			server, err := mcp.NewServer(ctx, opts)
-			Expect(err).To(HaveOccurred())
-			Expect(server).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("duplicate catalog"))
-		})
+		// Removed: duplicate catalog test - no longer applicable with single source config
 	})
 
 	Describe("Resource Operations", func() {
