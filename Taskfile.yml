@@ -1,0 +1,18 @@
+version: '3'
+
+tasks:
+  generate-schemas:
+    desc: Generate JSON Schema from CUE sources
+    dir: schemas
+    cmds:
+      - mkdir -p json-schema
+      - for: [kubernetes, terraform, docker, ansible, ci]
+        cmd: cue export cue/{{.ITEM}}.cue --out openapi --outfile json-schema/{{.ITEM}}.json
+    sources:
+      - cue/*.cue
+    generates:
+      - json-schema/*.json
+
+  default:
+    cmds:
+      - task: generate-schemas

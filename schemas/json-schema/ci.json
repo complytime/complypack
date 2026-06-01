@@ -1,0 +1,66 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Platform input schema for CI/CD configurations.\nUnion of GitLab CI and GitHub Actions fields since helpers support both.",
+        "version": "no version"
+    },
+    "paths": {},
+    "components": {
+        "schemas": {
+            "Job": {
+                "type": "object",
+                "properties": {
+                    "runs-on": {
+                        "description": "GitHub Actions",
+                        "type": "string"
+                    },
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Step"
+                        }
+                    },
+                    "stage": {
+                        "description": "GitLab CI",
+                        "type": "string"
+                    },
+                    "script": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "image": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Step": {
+                "type": "object",
+                "properties": {
+                    "uses": {
+                        "type": "string"
+                    },
+                    "run": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "with": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
