@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-30  
 **Status:** Accepted  
-**Deciders:** Jennifer Power, Claude
+**Deciders:** Jennifer Power
 
 ## Context
 
@@ -93,7 +93,7 @@ schemas/
 ## Implementation
 
 1. Copy CUE schemas from `complypack-pipeline/schemas/*.cue` to `schemas/cue/`
-2. Create `schemas/Makefile` with `generate-schemas` target
+2. Create `Taskfile.yml` with `generate-schemas` task
 3. Generate initial JSON Schema files via `cue export --out openapi`
 4. Commit both CUE (source) and JSON Schema (generated) to repo
 5. Binary embeds JSON Schema via `embed.FS`

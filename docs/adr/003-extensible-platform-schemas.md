@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-30  
 **Status:** Accepted  
-**Deciders:** Jennifer Power, Claude
+**Deciders:** Jennifer Power
 
 ## Context
 
