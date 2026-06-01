@@ -60,6 +60,77 @@ Supports:
 - Docker credential store (`credsStore`)
 - Docker config file (`auths`)
 
+### MCP Server
+
+Run the Model Context Protocol server to expose Gemara catalogs and platform schemas to LLMs:
+
+```bash
+complypack mcp serve
+```
+
+#### Prerequisites
+
+1. Create `complypack.yaml` in your working directory:
+
+```yaml
+platform: kubernetes
+gemara-catalogs:
+  - oci://ghcr.io/complytime/controls-catalog:v1
+  - oci://ghcr.io/complytime/security-controls:v2
+platform-schemas:
+  custom-platform: ./schemas/custom.cue  # Optional
+```
+
+2. Authenticate to OCI registries if needed:
+
+```bash
+docker login ghcr.io
+```
+
+#### Resources Exposed
+
+- Catalogs: `complypack://catalog/<name>` (YAML)
+- Schemas: `complypack://schema/<platform>` (JSON Schema)
+
+#### Flags
+
+- `--config, -c`: Path to complypack.yaml (default: "./complypack.yaml")
+- `--cache-dir`: Cache directory (default: "$HOME/.complypack/cache")
+
+#### Example
+
+```bash
+# Start server with default config
+complypack mcp serve
+
+# Use custom config path
+complypack mcp serve --config /path/to/config.yaml
+
+# Use custom cache directory
+complypack mcp serve --cache-dir /tmp/cache
+
+# Connect from Claude Code
+# (Server runs on stdio transport - Claude Code MCP client will connect automatically)
+```
+
+#### Built-in Platforms
+
+- `kubernetes` - Kubernetes resources (Deployment, Pod, Service, etc.)
+- `terraform` - Terraform plan JSON
+- `docker` - Dockerfile and container config
+- `ansible` - Ansible playbooks
+- `ci` - CI/CD pipelines (GitLab CI, GitHub Actions)
+
+#### Error Handling
+
+The server fails fast on errors:
+- Missing or invalid `complypack.yaml`
+- Unsupported platform
+- Catalog pull failures
+- Duplicate catalog IDs
+
+All errors include actionable remediation guidance.
+
 ## Library Quick Start
 
 ### Packing a Policy
