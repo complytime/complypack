@@ -205,7 +205,7 @@ func createMockCatalogBundle(t *testing.T, baseDir, bundleName string, files map
 
 	for filename, content := range files {
 		path := filepath.Join(bundleDir, filename)
-		err := os.WriteFile(path, []byte(content), 0644)
+		err := os.WriteFile(path, []byte(content), 0600)
 		require.NoError(t, err)
 	}
 }

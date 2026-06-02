@@ -21,14 +21,14 @@ type GemaraConfig struct {
 // ComplyPackConfig represents the structure of complypack.yaml.
 // Aligned with CEP-0001 and complypack-pipeline specification.
 type ComplyPackConfig struct {
-	EvaluatorID string         `yaml:"evaluator-id"`
-	Version     string         `yaml:"version"`
-	Gemara      GemaraConfig   `yaml:"gemara"`
-	Schemas     []SchemaRef    `yaml:"schemas"`
-	Policies    *DirConfig     `yaml:"policies,omitempty"`
-	Tests       *DirConfig     `yaml:"tests,omitempty"`
-	Fixtures    *DirConfig     `yaml:"fixtures,omitempty"`
-	Output      *DirConfig     `yaml:"output,omitempty"`
+	EvaluatorID string       `yaml:"evaluator-id"`
+	Version     string       `yaml:"version"`
+	Gemara      GemaraConfig `yaml:"gemara"`
+	Schemas     []SchemaRef  `yaml:"schemas"`
+	Policies    *DirConfig   `yaml:"policies,omitempty"`
+	Tests       *DirConfig   `yaml:"tests,omitempty"`
+	Fixtures    *DirConfig   `yaml:"fixtures,omitempty"`
+	Output      *DirConfig   `yaml:"output,omitempty"`
 }
 
 // DirConfig represents a directory configuration.
