@@ -46,7 +46,7 @@ We use the **OPA Go SDK in-process** for all policy operations:
 **Rationale:**
 
 | Criterion | In-Process SDK | Subprocess CLI |
-|-----------|---------------|----------------|
+|-----------|----------------|----------------|
 | **Performance** | ✅ No process spawn overhead | ❌ ~50-100ms per invocation |
 | **Error handling** | ✅ Typed errors, structured data | ❌ Parse stdout/stderr strings |
 | **Determinism** | ✅ Same Go version = same behavior | ❌ Depends on `opa` in `$PATH` |
@@ -74,7 +74,7 @@ We use the **OPA Go SDK in-process** for all policy operations:
 
 **Exception: Regal Linting**
 
-Regal (https://github.com/StyraInc/regal) is OPA's official linter, but:
+Regal (<https://github.com/StyraInc/regal>) is OPA's official linter, but:
 
 - No stable Go API (CLI-only)
 - Frequent releases (pinning version is hard)

@@ -83,10 +83,9 @@ func (o *OPA) Lint(filename string, src string) ([]LintWarning, error) {
 	// Run regal lint
 	cmd := exec.Command("regal", "lint", "--format", "json", tmpFile)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// regal returns non-zero exit code if there are linting issues
-		// This is expected, so we continue processing the output
-	}
+	// Intentionally ignore command error - regal returns non-zero when it finds linting issues,
+	// which is expected behavior. We parse the JSON output regardless.
+	_ = err
 
 	// Parse JSON output
 	var regalOutput struct {

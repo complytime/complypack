@@ -168,7 +168,7 @@ func loadFixtures(dir string) (map[string]interface{}, error) {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(path, ".json") {
-			content, err := os.ReadFile(path)
+			content, err := os.ReadFile(path) //nolint:gosec // G122: path is validated by filepath.Walk
 			if err != nil {
 				return fmt.Errorf("failed to read %s: %w", path, err)
 			}
