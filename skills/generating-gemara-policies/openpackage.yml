@@ -1,0 +1,25 @@
+name: generating-gemara-policies
+version: 1.0.0
+description: Generate Rego policies from Gemara control catalogs for OPA or Conftest validation
+author: Jennifer Power
+license: Apache-2.0
+
+repository:
+  type: git
+  url: https://github.com/complytime/complypack
+
+keywords:
+  - rego
+  - opa
+  - conftest
+  - gemara
+  - compliance
+  - policy
+  - kubernetes
+  - terraform
+  - docker
+
+# Optional MCP server dependency
+mcp:
+  complypack:
+    optional: true
