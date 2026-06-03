@@ -4,15 +4,13 @@ package evaluator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 
 	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/tester"
 	"github.com/complytime/complypack/internal/validator"
+	"github.com/open-policy-agent/regal/pkg/linter"
+	"github.com/open-policy-agent/regal/pkg/rules"
 )
 
 const OPAEvaluatorID = "opa"
@@ -62,56 +60,24 @@ func (o *OPA) Test(ctx context.Context, files map[string]string) (*TestResults, 
 }
 
 func (o *OPA) Lint(filename string, src string) ([]LintWarning, error) {
-	// Check if regal is available
-	if _, err := exec.LookPath("regal"); err != nil {
-		// Regal not installed - graceful degradation
-		return nil, nil
-	}
-
-	// Create temp file for policy
-	tmpDir, err := os.MkdirTemp("", "opa-lint-*")
+	input, err := rules.InputFromText(filename, src)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	tmpFile := filepath.Join(tmpDir, filepath.Base(filename))
-	if err := os.WriteFile(tmpFile, []byte(src), 0600); err != nil {
-		return nil, fmt.Errorf("failed to write temp file: %w", err)
+		return nil, fmt.Errorf("failed to parse input for linting: %w", err)
 	}
 
-	// Run regal lint
-	cmd := exec.Command("regal", "lint", "--format", "json", tmpFile)
-	output, err := cmd.CombinedOutput()
-	// Intentionally ignore command error - regal returns non-zero when it finds linting issues,
-	// which is expected behavior. We parse the JSON output regardless.
-	_ = err
+	l := linter.NewLinter().WithInputModules(&input)
 
-	// Parse JSON output
-	var regalOutput struct {
-		Violations []struct {
-			Title    string `json:"title"`
-			Category string `json:"category"`
-			Location struct {
-				File string `json:"file"`
-				Row  int    `json:"row"`
-				Col  int    `json:"col"`
-			} `json:"location"`
-		} `json:"violations"`
+	report, err := l.Lint(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("linting failed: %w", err)
 	}
 
-	if err := json.Unmarshal(output, &regalOutput); err != nil {
-		// If parsing fails, return no warnings (best-effort)
-		return nil, nil
-	}
-
-	// Convert to LintWarning format
 	var warnings []LintWarning
-	for _, v := range regalOutput.Violations {
+	for _, v := range report.Violations {
 		warnings = append(warnings, LintWarning{
 			Rule:     v.Category,
 			Message:  v.Title,
-			Location: fmt.Sprintf("%s:%d:%d", filename, v.Location.Row, v.Location.Col),
+			Location: fmt.Sprintf("%s:%d:%d", filename, v.Location.Row, v.Location.Column),
 		})
 	}
 
