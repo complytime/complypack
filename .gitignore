@@ -1,4 +1,5 @@
 # Binaries
+complypack
 *.exe
 *.exe~
 *.dll
@@ -26,6 +27,10 @@ go.work.sum
 # OS
 .DS_Store
 Thumbs.db
+
+# Local docs (plans, analysis)
+docs/plans/
+docs/analysis/
 
 # Development tooling
 .opencode/
