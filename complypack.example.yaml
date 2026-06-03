@@ -1,7 +1,12 @@
 # ComplyPack Configuration Example
 # This file shows all supported schema source types
 
-evaluator-id: io.complytime.opa
+# Provider plugin ID that evaluates this pack's content.
+# Must match the provider's registered ID (e.g., "opa" matches opa-provider).
+# Used by: complyctl (dispatch), MCP server (validator/tester), OCI artifact config.
+evaluator-id: opa
+
+# ComplyPack artifact version
 version: 0.1.0
 
 # Gemara catalog source (file path or OCI reference)
