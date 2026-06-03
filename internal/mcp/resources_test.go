@@ -21,7 +21,7 @@ func TestResourceStore_ListResources(t *testing.T) {
 		"terraform":  []byte(`{"components": {}}`),
 	}
 
-	store := NewResourceStore(catalogs, nil, nil, nil, schemas)
+	store := NewResourceStore(catalogs, nil, nil, nil, schemas, nil)
 	resources, err := store.ListResources(context.Background())
 	require.NoError(t, err)
 
@@ -57,7 +57,7 @@ func TestResourceStore_ReadResource(t *testing.T) {
 		"kubernetes": []byte(`{"components": {}}`),
 	}
 
-	store := NewResourceStore(catalogs, nil, nil, nil, schemas)
+	store := NewResourceStore(catalogs, nil, nil, nil, schemas, nil)
 
 	tests := []struct {
 		name     string

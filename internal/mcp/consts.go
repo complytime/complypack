@@ -7,10 +7,12 @@ const (
 	URIScheme = "complypack"
 
 	// Resource types
-	ResourceTypeCatalog = "catalog"
-	ResourceTypeSchema  = "schema"
+	ResourceTypeCatalog   = "catalog"
+	ResourceTypeSchema    = "schema"
+	ResourceTypeEvaluator = "evaluator"
 
 	// MIME types
 	MIMETypeYAML       = "application/yaml"
+	MIMETypeJSON       = "application/json"
 	MIMETypeJSONSchema = "application/json"
 )

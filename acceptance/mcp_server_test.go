@@ -182,7 +182,7 @@ controls:
 				"kubernetes": []byte(`{"type": "object"}`),
 			}
 
-			store = mcp.NewResourceStore(catalogs, nil, nil, nil, schemas)
+			store = mcp.NewResourceStore(catalogs, nil, nil, nil, schemas, nil)
 		})
 
 		It("should list all catalog and schema resources", func() {
@@ -248,12 +248,12 @@ controls:
 			Expect(err.Error()).To(ContainSubstring("invalid URI scheme"))
 		})
 
-		It("should fail with invalid URI format", func() {
+		It("should fail with unknown single-segment URI", func() {
 			uri := "complypack://invalid-format"
 			contents, err := store.ReadResource(ctx, uri)
 			Expect(err).To(HaveOccurred())
 			Expect(contents).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("invalid URI format"))
+			Expect(err.Error()).To(ContainSubstring("unknown resource type"))
 		})
 
 		It("should fail with unknown resource type", func() {
@@ -287,7 +287,7 @@ controls:
 			schemas := map[string][]byte{
 				"kubernetes": []byte(`{"type": "object"}`),
 			}
-			store := mcp.NewResourceStore(catalogs, nil, nil, nil, schemas)
+			store := mcp.NewResourceStore(catalogs, nil, nil, nil, schemas, nil)
 
 			// List resources
 			resources, err := store.ListResources(ctx)
@@ -327,7 +327,7 @@ controls:
 			schemas := map[string][]byte{
 				"kubernetes": []byte(`{"type": "object", "properties": {"kind": {"type": "string"}}}`),
 			}
-			store := mcp.NewResourceStore(map[string][]byte{}, nil, nil, nil, schemas)
+			store := mcp.NewResourceStore(map[string][]byte{}, nil, nil, nil, schemas, nil)
 
 			// List resources
 			resources, err := store.ListResources(ctx)

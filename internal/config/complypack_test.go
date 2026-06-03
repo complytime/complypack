@@ -78,7 +78,7 @@ schemas:
 	assert.Nil(t, config.Tests)
 }
 
-func TestLoadConfig_MissingEvaluatorID(t *testing.T) {
+func TestLoadConfig_OptionalEvaluatorID(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
@@ -93,9 +93,9 @@ schemas:
 	require.NoError(t, err)
 
 	config, err := LoadConfig(configPath)
-	assert.Error(t, err)
-	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "evaluator-id")
+	require.NoError(t, err)
+	assert.NotNil(t, config)
+	assert.Empty(t, config.EvaluatorID)
 }
 
 func TestLoadConfig_MissingVersion(t *testing.T) {

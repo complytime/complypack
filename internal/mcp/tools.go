@@ -78,18 +78,21 @@ func collectValidationErrors(err *jsonschema.ValidationError) []string {
 func createValidatePolicyTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "validate_policy",
-		Description: "Validate Rego policy syntax, contract compliance against platform schema, and linting",
+		Description: "Validate policy syntax, contract compliance against platform schema, and linting. Read complypack://evaluator to discover available evaluators.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"policyContent": map[string]interface{}{
 					"type":        "string",
-					"description": "The Rego policy source code to validate",
+					"description": "The policy source code to validate",
 				},
 				"platform": map[string]interface{}{
 					"type":        "string",
-					"enum":        []string{"kubernetes", "terraform", "docker", "ansible", "ci"},
 					"description": "Target platform for contract validation",
+				},
+				"evaluator": map[string]interface{}{
+					"type":        "string",
+					"description": "Evaluator ID (e.g., 'io.complytime.opa'). Omit to auto-select if only one is available. Read complypack://evaluator for the list.",
 				},
 			},
 			"required": []interface{}{"policyContent", "platform"},
@@ -101,13 +104,13 @@ func createValidatePolicyTool() *mcp.Tool {
 func createTestPolicyTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "test_policy",
-		Description: "Validate test data against platform schema, then execute policy tests",
+		Description: "Validate test data against platform schema, then execute policy tests. Read complypack://evaluator to discover available evaluators.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"policyContent": map[string]interface{}{
 					"type":        "string",
-					"description": "The Rego policy source code to test",
+					"description": "The policy source code to test",
 				},
 				"testData": map[string]interface{}{
 					"type":        "object",
@@ -115,8 +118,11 @@ func createTestPolicyTool() *mcp.Tool {
 				},
 				"platform": map[string]interface{}{
 					"type":        "string",
-					"enum":        []string{"kubernetes", "terraform", "docker", "ansible", "ci"},
 					"description": "Target platform for test data validation",
+				},
+				"evaluator": map[string]interface{}{
+					"type":        "string",
+					"description": "Evaluator ID (e.g., 'io.complytime.opa'). Omit to auto-select if only one is available. Read complypack://evaluator for the list.",
 				},
 			},
 			"required": []interface{}{"policyContent", "testData", "platform"},
@@ -222,6 +228,28 @@ func buildTestResultsResponse(results *evaluator.TestResults) (*mcp.CallToolResu
 	}, nil
 }
 
+// resolveEvaluator picks the evaluator from the store's registry.
+// If id is provided, looks it up directly. If empty and only one evaluator
+// is registered, auto-selects it. Otherwise returns an error listing options.
+func resolveEvaluator(store *ResourceStore, id string) (evaluator.Evaluator, error) {
+	if store.evaluators == nil {
+		return nil, fmt.Errorf("no evaluators available")
+	}
+
+	if id != "" {
+		return store.evaluators.Get(id)
+	}
+
+	ids := store.evaluators.IDs()
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no evaluators registered")
+	}
+	if len(ids) == 1 {
+		return store.evaluators.Get(ids[0])
+	}
+	return nil, fmt.Errorf("multiple evaluators available, specify one: %v", ids)
+}
+
 // handleValidatePolicy handles the validate_policy MCP tool.
 func handleValidatePolicy(store *ResourceStore) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -229,21 +257,22 @@ func handleValidatePolicy(store *ResourceStore) mcp.ToolHandler {
 		var input struct {
 			PolicyContent string `json:"policyContent"`
 			Platform      string `json:"platform"`
+			Evaluator     string `json:"evaluator"`
 		}
 
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return nil, fmt.Errorf("failed to parse input: %w", err)
 		}
 
-		// Get evaluator from registry
-		registry := evaluator.DefaultRegistry()
-		eval, err := registry.Get("io.complytime.opa")
+		eval, err := resolveEvaluator(store, input.Evaluator)
 		if err != nil {
 			return nil, fmt.Errorf("evaluator not found: %w", err)
 		}
 
+		filename := "policy" + eval.FileExtension()
+
 		// Validate syntax
-		syntaxErrs := eval.Validate("policy.rego", input.PolicyContent)
+		syntaxErrs := eval.Validate(filename, input.PolicyContent)
 
 		// Load CUE schema and check contract (only if syntax is valid)
 		var contractViolations []evaluator.ContractViolation
@@ -255,13 +284,13 @@ func handleValidatePolicy(store *ResourceStore) mcp.ToolHandler {
 				return nil, err
 			}
 
-			contractViolations, err = eval.CheckContract("policy.rego", input.PolicyContent, schema)
+			contractViolations, err = eval.CheckContract(filename, input.PolicyContent, schema)
 			if err != nil {
 				return nil, fmt.Errorf("contract check failed: %w", err)
 			}
 
 			// Run lint (graceful degradation if regal not available)
-			lintWarnings, _ = eval.Lint("policy.rego", input.PolicyContent)
+			lintWarnings, _ = eval.Lint(filename, input.PolicyContent)
 		}
 
 		// Build response
@@ -278,6 +307,7 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 			PolicyContent string                 `json:"policyContent"`
 			TestData      map[string]interface{} `json:"testData"`
 			Platform      string                 `json:"platform"`
+			Evaluator     string                 `json:"evaluator"`
 		}
 
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
@@ -290,16 +320,16 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 			return buildTestDataErrorResponse(testDataErrs)
 		}
 
-		// Get evaluator
-		registry := evaluator.DefaultRegistry()
-		eval, err := registry.Get("io.complytime.opa")
+		eval, err := resolveEvaluator(store, input.Evaluator)
 		if err != nil {
 			return nil, fmt.Errorf("evaluator not found: %w", err)
 		}
 
-		// Construct test files (policy only - tests use `with input as` for data)
+		filename := "policy" + eval.FileExtension()
+
+		// Construct test files
 		files := map[string]string{
-			"policy.rego": input.PolicyContent,
+			filename: input.PolicyContent,
 		}
 
 		// Execute tests

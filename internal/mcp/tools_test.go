@@ -114,7 +114,7 @@ func TestCreateTestPolicyTool(t *testing.T) {
 func TestValidateTestDataAgainstSchema(t *testing.T) {
 	// Create resource store with schemas
 	schemaMap := testLoadAllSchemas(t)
-	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap)
+	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap, evaluator.DefaultRegistry())
 
 	tests := []struct {
 		name        string
@@ -288,7 +288,7 @@ func TestBuildTestResultsResponse(t *testing.T) {
 func TestHandleValidatePolicy(t *testing.T) {
 	// Create resource store
 	schemaMap := testLoadAllSchemas(t)
-	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap)
+	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap, evaluator.DefaultRegistry())
 
 	handler := handleValidatePolicy(store)
 
@@ -375,7 +375,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 func TestHandleTestPolicy(t *testing.T) {
 	// Create resource store
 	schemaMap := testLoadAllSchemas(t)
-	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap)
+	store := NewResourceStore(map[string][]byte{}, nil, nil, nil, schemaMap, evaluator.DefaultRegistry())
 
 	handler := handleTestPolicy(store)
 

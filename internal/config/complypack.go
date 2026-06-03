@@ -71,10 +71,6 @@ func LoadConfig(path string) (*ComplyPackConfig, error) {
 
 // Validate checks that required fields are present.
 func (c *ComplyPackConfig) Validate() error {
-	if c.EvaluatorID == "" {
-		return fmt.Errorf("missing required field: evaluator-id")
-	}
-
 	if c.Version == "" {
 		return fmt.Errorf("missing required field: version")
 	}

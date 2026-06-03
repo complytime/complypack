@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/schemas"
 	"github.com/gemaraproj/go-gemara"
@@ -39,6 +40,10 @@ type ServerOptions struct {
 
 	// PlainHTTP forces HTTP instead of HTTPS for OCI registry.
 	PlainHTTP bool
+
+	// EvaluatorRegistry provides available policy evaluators.
+	// If nil, defaults to evaluator.DefaultRegistry().
+	EvaluatorRegistry *evaluator.Registry
 }
 
 // NewServer creates a ComplyPack MCP server.
@@ -76,6 +81,12 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		return nil, fmt.Errorf("failed to load schemas: %w", err)
 	}
 
+	// Set up evaluator registry
+	evalRegistry := opts.EvaluatorRegistry
+	if evalRegistry == nil {
+		evalRegistry = evaluator.DefaultRegistry()
+	}
+
 	// Create resource store with parsed artifacts
 	store := NewResourceStore(
 		artifacts.RawCatalogs,
@@ -83,6 +94,7 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		artifacts.Policies,
 		artifacts.EffectivePolicies,
 		schemaMap,
+		evalRegistry,
 	)
 
 	// Create MCP server
@@ -116,6 +128,15 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		}
 		mcpServer.AddResource(resource, createResourceHandler(store, uri))
 	}
+
+	// Register evaluator resource
+	evalURI := fmt.Sprintf("%s://%s", URIScheme, ResourceTypeEvaluator)
+	evalResource := &mcp.Resource{
+		URI:      evalURI,
+		Name:     "Available Policy Evaluators",
+		MIMEType: MIMETypeJSON,
+	}
+	mcpServer.AddResource(evalResource, createResourceHandler(store, evalURI))
 
 	// Register tools
 	validateTool := createValidatePolicyTool()
