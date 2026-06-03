@@ -118,7 +118,7 @@ schemas:
 	assert.Contains(t, err.Error(), "version")
 }
 
-func TestLoadConfig_MissingGemaraSource(t *testing.T) {
+func TestValidateForMCP_MissingGemaraSource(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
@@ -131,13 +131,15 @@ schemas:
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
 
-	config, err := LoadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
+	require.NoError(t, err)
+
+	err = cfg.ValidateForMCP()
 	assert.Error(t, err)
-	assert.Nil(t, config)
 	assert.Contains(t, err.Error(), "gemara.source")
 }
 
-func TestLoadConfig_MissingSchemas(t *testing.T) {
+func TestValidateForMCP_MissingSchemas(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "complypack.yaml")
 
@@ -149,9 +151,11 @@ gemara:
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
 
-	config, err := LoadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
+	require.NoError(t, err)
+
+	err = cfg.ValidateForMCP()
 	assert.Error(t, err)
-	assert.Nil(t, config)
 	assert.Contains(t, err.Error(), "schemas")
 }
 

@@ -62,6 +62,9 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+	if err := cfg.ValidateForMCP(); err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
 
 	// Load Gemara catalog(s) from source (file path or OCI reference)
 	// OCI bundles may include imports/extends, so we get a map back
