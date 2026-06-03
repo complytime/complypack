@@ -7,15 +7,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// SchemaRef represents a platform schema with its path and platform identifier.
+// SchemaRef represents a platform schema with its source and platform identifier.
 type SchemaRef struct {
-	Path     string `yaml:"path"`
+	// Platform identifies the target platform (e.g., "kubernetes", "terraform")
 	Platform string `yaml:"platform"`
+
+	// Source is a URI specifying where to load the schema from.
+	// Supported schemes:
+	//   - cue://module.path          -> CUE registry module
+	//   - https://example.com/s.json -> HTTP(S) download
+	//   - file://./path/to/file      -> Local file
+	// If empty, falls back to embedded schemas.
+	Source string `yaml:"source,omitempty"`
+
+	// Path is deprecated - use Source with file:// scheme instead.
+	// Kept for backward compatibility.
+	Path string `yaml:"path,omitempty"`
 }
 
 // GemaraConfig represents Gemara catalog source configuration.
 type GemaraConfig struct {
-	Source string `yaml:"source"`
+	Source    string `yaml:"source"`
+	PlainHTTP bool   `yaml:"plain-http,omitempty"` // Use HTTP instead of HTTPS for OCI registries
 }
 
 // ComplyPackConfig represents the structure of complypack.yaml.
@@ -76,12 +89,11 @@ func (c *ComplyPackConfig) Validate() error {
 
 	// Validate each schema has required fields
 	for i, schema := range c.Schemas {
-		if schema.Path == "" {
-			return fmt.Errorf("schema %d missing required field: path", i)
-		}
 		if schema.Platform == "" {
 			return fmt.Errorf("schema %d missing required field: platform", i)
 		}
+		// Either source or path must be specified (path is legacy)
+		// If neither is specified, we'll fall back to embedded schemas
 	}
 
 	return nil

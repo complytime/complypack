@@ -169,10 +169,11 @@ schemas:
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	require.NoError(t, err)
 
+	// Schema without source/path is valid - uses embedded schema
 	config, err := LoadConfig(configPath)
-	assert.Error(t, err)
-	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "path")
+	assert.NoError(t, err)
+	assert.NotNil(t, config)
+	assert.Equal(t, "kubernetes", config.Schemas[0].Platform)
 }
 
 func TestLoadConfig_SchemaMissingPlatform(t *testing.T) {
