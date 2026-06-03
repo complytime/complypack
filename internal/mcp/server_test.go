@@ -46,7 +46,6 @@ schemas:
 			ConfigPath: configPath,
 			OCIStore:   ociStore,
 			CacheDir:   cacheDir,
-			PlainHTTP:  true,
 		})
 
 		require.NoError(t, err)
@@ -83,7 +82,6 @@ schemas:
 			ConfigPath: configPath,
 			OCIStore:   ociStore,
 			CacheDir:   cacheDir,
-			PlainHTTP:  true,
 		})
 
 		assert.Error(t, err)
@@ -115,7 +113,6 @@ schemas:
 			ConfigPath: configPath,
 			OCIStore:   ociStore,
 			CacheDir:   cacheDir,
-			PlainHTTP:  true,
 		})
 
 		assert.NoError(t, err)

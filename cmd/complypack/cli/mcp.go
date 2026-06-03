@@ -31,7 +31,6 @@ func mcpServeCmd() *cobra.Command {
 	var (
 		configPath string
 		cacheDir   string
-		plainHTTP  bool
 	)
 
 	cmd := &cobra.Command{
@@ -64,7 +63,6 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 			opts := &mcp.ServerOptions{
 				ConfigPath: configPath,
 				CacheDir:   resolvedCacheDir,
-				PlainHTTP:  plainHTTP,
 			}
 
 			server, err := mcp.NewServer(ctx, opts)
@@ -84,7 +82,6 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 
 	cmd.Flags().StringVarP(&configPath, "config", "c", "complypack.yaml", "Path to complypack.yaml config file")
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Cache directory (default: $HOME/.complypack/cache)")
-	cmd.Flags().BoolVar(&plainHTTP, "plain-http", false, "Use HTTP instead of HTTPS for OCI registries")
 
 	return cmd
 }

@@ -38,9 +38,6 @@ type ServerOptions struct {
 	// CacheDir is the directory for MCP server caching.
 	CacheDir string
 
-	// PlainHTTP forces HTTP instead of HTTPS for OCI registry.
-	PlainHTTP bool
-
 	// EvaluatorRegistry provides available policy evaluators.
 	// If nil, defaults to evaluator.DefaultRegistry().
 	EvaluatorRegistry *evaluator.Registry
@@ -68,9 +65,7 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 
 	// Load Gemara catalog(s) from source (file path or OCI reference)
 	// OCI bundles may include imports/extends, so we get a map back
-	// Use PlainHTTP from config, with CLI flag as fallback
-	plainHTTP := cfg.Gemara.PlainHTTP || opts.PlainHTTP
-	artifacts, err := loadArtifacts(ctx, cfg.Gemara.Source, plainHTTP)
+	artifacts, err := loadArtifacts(ctx, cfg.Gemara.Source, cfg.Gemara.PlainHTTP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load artifacts from %s: %w", cfg.Gemara.Source, err)
 	}
