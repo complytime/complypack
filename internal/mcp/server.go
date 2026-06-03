@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"cuelang.org/go/cue/format"
+	"cuelang.org/go/encoding/openapi"
 	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/registry"
@@ -271,22 +273,29 @@ func loadJSONSchemaFromSource(ctx context.Context, source SchemaSource, platform
 	return data, nil
 }
 
-// loadJSONSchemaFromCUE loads a CUE schema and converts it to JSON Schema.
+// loadJSONSchemaFromCUE loads a CUE schema and converts it to JSON Schema
+// via the OpenAPI encoding. CUE definitions (e.g., #Workflow) cannot be
+// marshaled directly with MarshalJSON — they require the openapi encoder
+// to produce a valid JSON Schema representation.
 func loadJSONSchemaFromCUE(ctx context.Context, source SchemaSource, platform string) ([]byte, error) {
-	// Load the CUE schema using the existing loader
 	cueVal, err := loadCUEFromSource(ctx, source, platform)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load CUE schema: %w", err)
 	}
 
-	// Convert CUE value to JSON Schema
-	// CUE's approach: export the value as JSON which represents the schema structure
-	jsonBytes, err := cueVal.MarshalJSON()
+	astFile, err := openapi.Generate(cueVal, &openapi.Config{
+		ExpandReferences: true,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert CUE to JSON: %w", err)
+		return nil, fmt.Errorf("failed to convert CUE to OpenAPI/JSON Schema: %w", err)
 	}
 
-	slog.Info("loaded and converted CUE schema to JSON", "platform", platform, "source", source.Path)
+	jsonBytes, err := format.Node(astFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format OpenAPI output: %w", err)
+	}
+
+	slog.Info("loaded and converted CUE schema to JSON Schema via OpenAPI", "platform", platform, "source", source.Path)
 	return jsonBytes, nil
 }
 
