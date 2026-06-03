@@ -53,7 +53,7 @@ func TestLoadCUESchemaForPlatform(t *testing.T) {
 			name:        "unknown platform",
 			platform:    "unknown",
 			wantErr:     true,
-			errContains: "unsupported platform",
+			errContains: "not found",
 		},
 	}
 
