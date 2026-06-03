@@ -208,8 +208,8 @@ func TestBuildValidationResponse(t *testing.T) {
 			wantValid:  false,
 		},
 		{
-			name:  "contract violations",
-			valid: false,
+			name:       "contract violations",
+			valid:      false,
 			syntaxErrs: nil,
 			violations: []evaluator.ContractViolation{
 				{Path: "input.invalid.field", Location: "policy.rego:10:5"},

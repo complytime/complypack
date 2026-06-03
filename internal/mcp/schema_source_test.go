@@ -93,9 +93,9 @@ func TestParseSchemaSource(t *testing.T) {
 
 func TestDetectFormat(t *testing.T) {
 	tests := []struct {
-		name   string
-		path   string
-		want   SchemaFormat
+		name string
+		path string
+		want SchemaFormat
 	}{
 		{
 			name: "json extension",

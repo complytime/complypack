@@ -141,7 +141,7 @@ complypack mcp serve --cache-dir /tmp/cache
 - `ansible` - Ansible playbooks
 - `ci` - CI/CD pipelines (GitLab CI, GitHub Actions)
 
-#### Error Handling
+#### Server Error Handling
 
 The server fails fast on errors:
 - Missing or invalid `complypack.yaml`
@@ -258,11 +258,11 @@ ComplyPack uses **OCI Image Manifest v1.1** with the following structure:
 
 ### Media Types
 
-| Purpose | Media Type |
-|---------|-----------|
-| Artifact Type | `application/vnd.complypack.artifact.v1` |
-| Config Layer | `application/vnd.complypack.config.v1+json` |
-| Content Layer | `application/vnd.complypack.content.v1.tar+gzip` |
+| Purpose       | Media Type                                      |
+|---------------|-------------------------------------------------|
+| Artifact Type | `application/vnd.complypack.artifact.v1`          |
+| Config Layer  | `application/vnd.complypack.config.v1+json`       |
+| Content Layer | `application/vnd.complypack.content.v1.tar+gzip`  |
 
 ### Content Layer
 
