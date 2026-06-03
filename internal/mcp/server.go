@@ -207,7 +207,9 @@ func loadSchemas(ctx context.Context, schemaRefs []config.SchemaRef) (map[string
 		if data == nil {
 			data, err = schemas.GetBuiltInSchema(platform)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load schema for %s: %w", platform, err)
+				slog.Warn("no schema available for platform, skipping",
+					"platform", platform, "error", err)
+				continue
 			}
 			slog.Info("loaded embedded schema", "platform", platform)
 		}

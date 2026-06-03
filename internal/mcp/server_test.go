@@ -91,7 +91,7 @@ schemas:
 		assert.Contains(t, err.Error(), "failed to load artifacts")
 	})
 
-	t.Run("error when platform unsupported", func(t *testing.T) {
+	t.Run("skip unknown platform without error", func(t *testing.T) {
 		cacheDir := t.TempDir()
 		ociStore := t.TempDir()
 
@@ -118,9 +118,8 @@ schemas:
 			PlainHTTP:  true,
 		})
 
-		assert.Error(t, err)
-		assert.Nil(t, srv)
-		assert.Contains(t, err.Error(), "failed to load schema")
+		assert.NoError(t, err)
+		assert.NotNil(t, srv)
 	})
 
 	// Removed: duplicate catalog test - no longer applicable with single source config

@@ -120,10 +120,10 @@ schemas:
 			Expect(err.Error()).To(ContainSubstring("failed to load artifacts"))
 		})
 
-		It("should fail with unsupported platform", func() {
-			unsupportedConfigPath := filepath.Join(tempDir, "unsupported-config.yaml")
+		It("should skip unknown platform without failing", func() {
+			unknownConfigPath := filepath.Join(tempDir, "unknown-platform-config.yaml")
 			catalogPath := filepath.Join(catalogDir, "test-catalog.yaml")
-			unsupportedConfigContent := `evaluator-id: io.complytime.opa
+			unknownConfigContent := `evaluator-id: io.complytime.opa
 version: 0.1.0
 gemara:
   source: ` + catalogPath + `
@@ -131,18 +131,17 @@ schemas:
   - path: schemas/invalid.cue
     platform: unsupported-platform
 `
-			err := os.WriteFile(unsupportedConfigPath, []byte(unsupportedConfigContent), 0600)
+			err := os.WriteFile(unknownConfigPath, []byte(unknownConfigContent), 0600)
 			Expect(err).NotTo(HaveOccurred())
 
 			opts := &mcp.ServerOptions{
-				ConfigPath: unsupportedConfigPath,
+				ConfigPath: unknownConfigPath,
 				CacheDir:   filepath.Join(tempDir, "cache"),
 			}
 
 			server, err := mcp.NewServer(ctx, opts)
-			Expect(err).To(HaveOccurred())
-			Expect(server).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to load schema"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(server).NotTo(BeNil())
 		})
 
 		// Removed: duplicate catalog test - no longer applicable with single source config
