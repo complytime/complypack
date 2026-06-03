@@ -117,7 +117,7 @@ schemas:
 			server, err := mcp.NewServer(ctx, opts)
 			Expect(err).To(HaveOccurred())
 			Expect(server).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to read catalog"))
+			Expect(err.Error()).To(ContainSubstring("failed to load artifacts"))
 		})
 
 		It("should fail with unsupported platform", func() {
@@ -183,7 +183,7 @@ controls:
 				"kubernetes": []byte(`{"type": "object"}`),
 			}
 
-			store = mcp.NewResourceStore(catalogs, schemas)
+			store = mcp.NewResourceStore(catalogs, nil, nil, nil, schemas)
 		})
 
 		It("should list all catalog and schema resources", func() {
@@ -288,7 +288,7 @@ controls:
 			schemas := map[string][]byte{
 				"kubernetes": []byte(`{"type": "object"}`),
 			}
-			store := mcp.NewResourceStore(catalogs, schemas)
+			store := mcp.NewResourceStore(catalogs, nil, nil, nil, schemas)
 
 			// List resources
 			resources, err := store.ListResources(ctx)
@@ -328,7 +328,7 @@ controls:
 			schemas := map[string][]byte{
 				"kubernetes": []byte(`{"type": "object", "properties": {"kind": {"type": "string"}}}`),
 			}
-			store := mcp.NewResourceStore(map[string][]byte{}, schemas)
+			store := mcp.NewResourceStore(map[string][]byte{}, nil, nil, nil, schemas)
 
 			// List resources
 			resources, err := store.ListResources(ctx)
