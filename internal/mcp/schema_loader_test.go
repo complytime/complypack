@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,6 +87,75 @@ func TestIsMajorOnly(t *testing.T) {
 			assert.Equal(t, tt.want, isMajorOnly(tt.input))
 		})
 	}
+}
+
+func TestResolveCUEDefinition(t *testing.T) {
+	ctx := cuecontext.New()
+
+	t.Run("resolves named definition", func(t *testing.T) {
+		val := ctx.CompileString(`
+#Workflow: {
+	name?: string
+	on?: _
+	jobs?: [string]: #Job
+}
+#Job: {
+	"runs-on"?: string
+	...
+}
+`)
+		require.NoError(t, val.Err())
+
+		resolved, err := resolveCUEDefinition(val, "Workflow")
+		require.NoError(t, err)
+
+		name := resolved.LookupPath(cue.MakePath(cue.Str("name").Optional()))
+		assert.True(t, name.Exists(), "resolved value should have 'name' field")
+	})
+
+	t.Run("no fragment with regular fields passes through", func(t *testing.T) {
+		val := ctx.CompileString(`
+name?: string
+on?: _
+`)
+		require.NoError(t, val.Err())
+
+		resolved, err := resolveCUEDefinition(val, "")
+		require.NoError(t, err)
+
+		name := resolved.LookupPath(cue.MakePath(cue.Str("name").Optional()))
+		assert.True(t, name.Exists(), "value should pass through unchanged")
+	})
+
+	t.Run("no fragment with definitions only returns error", func(t *testing.T) {
+		val := ctx.CompileString(`
+#Workflow: {
+	name?: string
+}
+#Job: {
+	stage?: string
+}
+`)
+		require.NoError(t, val.Err())
+
+		_, err := resolveCUEDefinition(val, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "#Workflow")
+		assert.Contains(t, err.Error(), "#Job")
+	})
+
+	t.Run("nonexistent definition returns error", func(t *testing.T) {
+		val := ctx.CompileString(`
+#Workflow: {
+	name?: string
+}
+`)
+		require.NoError(t, val.Err())
+
+		_, err := resolveCUEDefinition(val, "Bogus")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "#Bogus")
+	})
 }
 
 func TestLoadFromCUERegistry_Integration(t *testing.T) {

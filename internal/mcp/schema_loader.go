@@ -23,7 +23,11 @@ import (
 func LoadCUEFromSource(ctx context.Context, source SchemaSource, platform string) (cue.Value, error) {
 	switch source.Type {
 	case SourceTypeCUEModule:
-		return loadFromCUERegistry(ctx, source.Path)
+		val, err := loadFromCUERegistry(ctx, source.Path)
+		if err != nil {
+			return cue.Value{}, err
+		}
+		return resolveCUEDefinition(val, source.Fragment)
 
 	case SourceTypeHTTPS, SourceTypeHTTP:
 		data, format, err := fetchSchemaFromURL(ctx, source.Path)
@@ -51,6 +55,48 @@ func LoadCUEFromSource(ctx context.Context, source SchemaSource, platform string
 	default:
 		return cue.Value{}, fmt.Errorf("unsupported source type: %v", source.Type)
 	}
+}
+
+// resolveCUEDefinition resolves a #Definition from a CUE value.
+// If fragment is empty and the value has regular (non-definition) fields,
+// it returns the value as-is. If the value has only definitions and no
+// fragment is specified, it returns an error listing available definitions.
+func resolveCUEDefinition(val cue.Value, fragment string) (cue.Value, error) {
+	if fragment != "" {
+		resolved := val.LookupPath(cue.MakePath(cue.Def(fragment)))
+		if !resolved.Exists() {
+			return cue.Value{}, fmt.Errorf("definition #%s not found in schema", fragment)
+		}
+		return resolved, nil
+	}
+
+	// No fragment — check if value has regular fields
+	hasRegularFields := false
+	iter, _ := val.Fields(cue.Optional(true))
+	for iter.Next() {
+		hasRegularFields = true
+		break
+	}
+
+	if hasRegularFields {
+		return val, nil
+	}
+
+	// Only definitions — list them in the error message
+	var defs []string
+	defIter, _ := val.Fields(cue.Definitions(true))
+	for defIter.Next() {
+		defs = append(defs, defIter.Selector().String())
+	}
+
+	if len(defs) == 0 {
+		return cue.Value{}, fmt.Errorf("schema has no fields or definitions")
+	}
+
+	return cue.Value{}, fmt.Errorf(
+		"schema has only definitions, specify one with #Fragment in the source URL (available: %s)",
+		strings.Join(defs, ", "),
+	)
 }
 
 // loadFromCUERegistry loads a CUE module from the Central Registry by creating
