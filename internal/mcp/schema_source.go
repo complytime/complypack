@@ -21,8 +21,9 @@ const (
 
 // SchemaSource represents a parsed schema source URI.
 type SchemaSource struct {
-	Type SchemaSourceType
-	Path string // Module path, URL, or file path depending on Type
+	Type     SchemaSourceType
+	Path     string // Module path, URL, or file path depending on Type
+	Fragment string // CUE definition name (e.g., "Workflow" from "#Workflow")
 }
 
 // ParseSchemaSource parses a source URI and determines its type.
@@ -44,9 +45,15 @@ func ParseSchemaSource(source string) (SchemaSource, error) {
 		if modulePath == "" {
 			return SchemaSource{}, fmt.Errorf("cue:// scheme requires module path")
 		}
+		var fragment string
+		if idx := strings.LastIndex(modulePath, "#"); idx >= 0 {
+			fragment = modulePath[idx+1:]
+			modulePath = modulePath[:idx]
+		}
 		return SchemaSource{
-			Type: SourceTypeCUEModule,
-			Path: modulePath,
+			Type:     SourceTypeCUEModule,
+			Path:     modulePath,
+			Fragment: fragment,
 		}, nil
 	}
 

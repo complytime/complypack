@@ -11,54 +11,90 @@ import (
 
 func TestParseSchemaSource(t *testing.T) {
 	tests := []struct {
-		name        string
-		source      string
-		wantType    SchemaSourceType
-		wantPath    string
-		wantErr     bool
-		errContains string
+		name         string
+		source       string
+		wantType     SchemaSourceType
+		wantPath     string
+		wantFragment string
+		wantErr      bool
+		errContains  string
 	}{
 		{
-			name:     "cue module",
-			source:   "cue://cue.dev/x/k8s.io/api/core/v1",
-			wantType: SourceTypeCUEModule,
-			wantPath: "cue.dev/x/k8s.io/api/core/v1",
+			name:         "cue module",
+			source:       "cue://cue.dev/x/k8s.io/api/core/v1",
+			wantType:     SourceTypeCUEModule,
+			wantPath:     "cue.dev/x/k8s.io/api/core/v1",
+			wantFragment: "",
 		},
 		{
-			name:     "https URL",
-			source:   "https://example.com/schemas/terraform.json",
-			wantType: SourceTypeHTTPS,
-			wantPath: "https://example.com/schemas/terraform.json",
+			name:         "cue module with definition fragment",
+			source:       "cue://cue.dev/x/githubactions@v0#Workflow",
+			wantType:     SourceTypeCUEModule,
+			wantPath:     "cue.dev/x/githubactions@v0",
+			wantFragment: "Workflow",
 		},
 		{
-			name:     "http URL",
-			source:   "http://localhost:8080/schema.cue",
-			wantType: SourceTypeHTTP,
-			wantPath: "http://localhost:8080/schema.cue",
+			name:         "cue module without fragment",
+			source:       "cue://cue.dev/x/githubactions@v0",
+			wantType:     SourceTypeCUEModule,
+			wantPath:     "cue.dev/x/githubactions@v0",
+			wantFragment: "",
 		},
 		{
-			name:     "file path absolute",
-			source:   "file:///etc/schemas/docker.cue",
-			wantType: SourceTypeFile,
-			wantPath: "/etc/schemas/docker.cue",
+			name:         "cue module with versioned fragment",
+			source:       "cue://cue.dev/x/githubactions@v0@v0.4.0#Workflow",
+			wantType:     SourceTypeCUEModule,
+			wantPath:     "cue.dev/x/githubactions@v0@v0.4.0",
+			wantFragment: "Workflow",
 		},
 		{
-			name:     "file path relative",
-			source:   "file://./schemas/custom.json",
-			wantType: SourceTypeFile,
-			wantPath: "./schemas/custom.json",
+			name:         "https URL",
+			source:       "https://example.com/schemas/terraform.json",
+			wantType:     SourceTypeHTTPS,
+			wantPath:     "https://example.com/schemas/terraform.json",
+			wantFragment: "",
 		},
 		{
-			name:     "legacy path",
-			source:   "./schemas/old-style.cue",
-			wantType: SourceTypeLegacyPath,
-			wantPath: "./schemas/old-style.cue",
+			name:         "http URL",
+			source:       "http://localhost:8080/schema.cue",
+			wantType:     SourceTypeHTTP,
+			wantPath:     "http://localhost:8080/schema.cue",
+			wantFragment: "",
 		},
 		{
-			name:     "empty source",
-			source:   "",
-			wantType: SourceTypeUnknown,
-			wantPath: "",
+			name:         "file path absolute",
+			source:       "file:///etc/schemas/docker.cue",
+			wantType:     SourceTypeFile,
+			wantPath:     "/etc/schemas/docker.cue",
+			wantFragment: "",
+		},
+		{
+			name:         "non-cue source ignores hash in path",
+			source:       "file:///path/to/schema.cue",
+			wantType:     SourceTypeFile,
+			wantPath:     "/path/to/schema.cue",
+			wantFragment: "",
+		},
+		{
+			name:         "file path relative",
+			source:       "file://./schemas/custom.json",
+			wantType:     SourceTypeFile,
+			wantPath:     "./schemas/custom.json",
+			wantFragment: "",
+		},
+		{
+			name:         "legacy path",
+			source:       "./schemas/old-style.cue",
+			wantType:     SourceTypeLegacyPath,
+			wantPath:     "./schemas/old-style.cue",
+			wantFragment: "",
+		},
+		{
+			name:         "empty source",
+			source:       "",
+			wantType:     SourceTypeUnknown,
+			wantPath:     "",
+			wantFragment: "",
 		},
 		{
 			name:        "cue scheme without path",
@@ -87,6 +123,7 @@ func TestParseSchemaSource(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantType, result.Type)
 			assert.Equal(t, tt.wantPath, result.Path)
+			assert.Equal(t, tt.wantFragment, result.Fragment)
 		})
 	}
 }
