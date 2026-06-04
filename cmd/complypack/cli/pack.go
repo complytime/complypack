@@ -227,4 +227,3 @@ func loadEmbeddedCUE(platform string) (cue.Value, error) {
 	}
 	return val, nil
 }
-

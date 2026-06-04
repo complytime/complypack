@@ -10,11 +10,18 @@ Two architectural issues required a combined fix:
 
 1. **Pack shipped unvalidated content.** `complypack pack` tarballed policy content and pushed to an OCI registry with zero quality checks. Broken Rego, invalid schema references, and failing tests all got published. For a compliance tool, this undermines trust in the artifact.
 
-2. **Schema path divergence.** The MCP server loaded schemas from user-configured sources (CUE registry, HTTPS, file) and served them via `complypack://schema/<platform>` resources. However, the `validate_policy` MCP tool loaded CUE schemas exclusively from embedded files via `loadCUESchemaForPlatform()`, ignoring user configuration. If a user overrode a schema via config, the LLM saw one schema but contract validation ran against another. Additionally, `loadSchemas()` silently fell back to embedded schemas when a configured source failed, violating ADR 004 (fail-fast).
+2. **Schema path divergence.** The MCP server loaded schemas from user-configured
+   sources (CUE registry, HTTPS, file) and served them via
+   `complypack://schema/<platform>` resources. However, the `validate_policy`
+   MCP tool loaded CUE schemas exclusively from embedded files via
+   `loadCUESchemaForPlatform()`, ignoring user configuration. If a user overrode
+   a schema via config, the LLM saw one schema but contract validation ran
+   against another. Additionally, `loadSchemas()` silently fell back to embedded
+   schemas when a configured source failed, violating ADR 004 (fail-fast).
 
 **Decision:**
 
-### Part 1: Unified Schema Store
+## Part 1: Unified Schema Store
 
 Extend `ResourceStore` to hold both `[]byte` (for MCP resource serving) and compiled `cue.Value` (for contract validation) per platform. Both representations are loaded once from the same configured source at startup.
 
@@ -24,7 +31,7 @@ Extend `ResourceStore` to hold both `[]byte` (for MCP resource serving) and comp
 - Silent fallback removed: if a user-configured source fails, the server refuses to start (per ADR 004)
 - Embedded schemas are used only when no source is configured
 
-### Part 2: Pre-Pack Validation Pipeline
+## Part 2: Pre-Pack Validation Pipeline
 
 `complypack pack` runs a 3-stage validation pipeline before packaging:
 
@@ -36,10 +43,10 @@ Each stage is fail-fast: syntax failure skips contract/test, contract failure sk
 
 CLI flags:
 
-| Flag | Default | Behavior |
-|:--|:--|:--|
-| `--skip-validation` | `false` | Skip all pre-pack validation |
-| `--skip-tests` | `false` | Run syntax + contract but skip test execution |
+| Flag                 | Default | Behavior                                      |
+| -------------------- | ------- | --------------------------------------------- |
+| `--skip-validation`  | `false` | Skip all pre-pack validation                  |
+| `--skip-tests`       | `false` | Run syntax + contract but skip test execution |
 
 The pack command uses the same schema loading path (`LoadCUEFromSource`, `loadEmbeddedCUESchema`) as the MCP server.
 
