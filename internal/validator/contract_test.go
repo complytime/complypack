@@ -5,6 +5,7 @@ package validator
 import (
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/complytime/complypack/schemas"
 	"github.com/stretchr/testify/assert"
@@ -23,13 +24,22 @@ func TestCheckContract(t *testing.T) {
 	// Use the compiled schema directly - it contains the field definitions
 	schema := compiled
 
+	// Load CI CUE schema for testing top type and pattern constraints
+	ciSrc, err := schemas.GetBuiltInCUESchema("ci")
+	require.NoError(t, err)
+	ciCompiled := ctx.CompileBytes(ciSrc)
+	require.NoError(t, ciCompiled.Err())
+	ciSchema := ciCompiled
+
 	tests := []struct {
 		name           string
+		schema         cue.Value
 		src            string
 		wantViolations int
 	}{
 		{
-			name: "valid contract - references exist",
+			name:   "valid contract - references exist",
+			schema: schema,
 			src: `package example
 import rego.v1
 
@@ -42,7 +52,8 @@ deny contains msg if {
 			wantViolations: 0,
 		},
 		{
-			name: "missing path flagged",
+			name:   "missing path flagged",
+			schema: schema,
 			src: `package example
 import rego.v1
 
@@ -53,7 +64,8 @@ deny contains msg if {
 			wantViolations: 1,
 		},
 		{
-			name: "dynamic refs skipped",
+			name:   "dynamic refs skipped",
+			schema: schema,
 			src: `package example
 import rego.v1
 
@@ -65,7 +77,8 @@ deny contains msg if {
 			wantViolations: 0,
 		},
 		{
-			name: "multiple violations",
+			name:   "multiple violations",
+			schema: schema,
 			src: `package example
 import rego.v1
 
@@ -77,7 +90,8 @@ deny contains msg if {
 			wantViolations: 2,
 		},
 		{
-			name: "input reference is valid",
+			name:   "input reference is valid",
+			schema: schema,
 			src: `package example
 import rego.v1
 
@@ -87,11 +101,73 @@ deny contains msg if {
 }`,
 			wantViolations: 0,
 		},
+		{
+			name:   "CI top type - on.push.branches is valid",
+			schema: ciSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.on.push.branches
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "CI pattern constraint - jobs.build is valid",
+			schema: ciSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.jobs.build
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "CI pattern + nested field - jobs.build.steps is valid",
+			schema: ciSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	job := input.jobs.build
+	job.steps
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "K8s pattern constraint - metadata.labels.app is valid",
+			schema: schema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.labels.app
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "CI open schema - arbitrary top-level key is valid",
+			schema: ciSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.completely_bogus
+	msg := "test"
+}`,
+			// CI schema has [string]: #Job | [...string] | _ which accepts any key
+			wantViolations: 0,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			violations, err := CheckContract("test.rego", tt.src, schema)
+			violations, err := CheckContract("test.rego", tt.src, tt.schema)
 			require.NoError(t, err)
 			assert.Len(t, violations, tt.wantViolations)
 
