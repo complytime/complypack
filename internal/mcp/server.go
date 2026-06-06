@@ -67,11 +67,21 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Load Gemara catalog(s) from source (file path or OCI reference)
-	// OCI bundles may include imports/extends, so we get a map back
-	artifacts, err := loadArtifacts(ctx, cfg.Gemara.Source, cfg.Gemara.PlainHTTP)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load artifacts from %s: %w", cfg.Gemara.Source, err)
+	// Load Gemara artifacts from all configured sources
+	artifacts := &LoadedArtifacts{
+		RawCatalogs:       make(map[string][]byte),
+		Catalogs:          make(map[string]*gemara.ControlCatalog),
+		Policies:          make(map[string]*gemara.Policy),
+		EffectivePolicies: make(map[string]*gemara.EffectivePolicy),
+	}
+	for _, entry := range cfg.Gemara.Sources {
+		loaded, err := loadArtifacts(ctx, entry.Source, entry.PlainHTTP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load artifacts from %s: %w", entry.Source, err)
+		}
+		if err := artifacts.Merge(loaded); err != nil {
+			return nil, fmt.Errorf("failed to merge artifacts from %s: %w", entry.Source, err)
+		}
 	}
 
 	// Load schemas from configured sources (both bytes and compiled CUE)
@@ -331,6 +341,27 @@ type LoadedArtifacts struct {
 	Catalogs          map[string]*gemara.ControlCatalog
 	Policies          map[string]*gemara.Policy
 	EffectivePolicies map[string]*gemara.EffectivePolicy
+}
+
+// Merge combines another LoadedArtifacts into this one.
+// Returns an error if any artifact ID appears in both.
+func (la *LoadedArtifacts) Merge(other *LoadedArtifacts) error {
+	for id, data := range other.RawCatalogs {
+		if _, exists := la.RawCatalogs[id]; exists {
+			return fmt.Errorf("duplicate artifact id %q across sources", id)
+		}
+		la.RawCatalogs[id] = data
+	}
+	for id, cat := range other.Catalogs {
+		la.Catalogs[id] = cat
+	}
+	for id, pol := range other.Policies {
+		la.Policies[id] = pol
+	}
+	for id, ep := range other.EffectivePolicies {
+		la.EffectivePolicies[id] = ep
+	}
+	return nil
 }
 
 // loadArtifacts loads and classifies Gemara artifacts from either a file path or OCI reference.
