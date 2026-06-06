@@ -41,7 +41,7 @@ output:
 	assert.NotNil(t, config)
 	assert.Equal(t, "opa", config.EvaluatorID)
 	assert.Equal(t, "0.1.0", config.Version)
-	assert.Equal(t, "catalogs/nist-800-53.yaml", config.Gemara.Source)
+	assert.Equal(t, "catalogs/nist-800-53.yaml", config.Gemara.Sources[0].Source)
 	assert.Len(t, config.Schemas, 2)
 	assert.Equal(t, "schemas/kubernetes.cue", config.Schemas[0].Path)
 	assert.Equal(t, "kubernetes", config.Schemas[0].Platform)
@@ -72,7 +72,7 @@ schemas:
 	assert.NotNil(t, config)
 	assert.Equal(t, "opa", config.EvaluatorID)
 	assert.Equal(t, "0.1.0", config.Version)
-	assert.Equal(t, "catalogs/controls.yaml", config.Gemara.Source)
+	assert.Equal(t, "catalogs/controls.yaml", config.Gemara.Sources[0].Source)
 	assert.Len(t, config.Schemas, 1)
 	assert.Nil(t, config.Policies)
 	assert.Nil(t, config.Tests)
@@ -136,7 +136,7 @@ schemas:
 
 	err = cfg.ValidateForMCP()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "gemara.source")
+	assert.Contains(t, err.Error(), "gemara.sources")
 }
 
 func TestValidateForMCP_MissingSchemas(t *testing.T) {
@@ -204,4 +204,72 @@ func TestLoadConfig_FileNotFound(t *testing.T) {
 	config, err := LoadConfig("/nonexistent/path/complypack.yaml")
 	assert.Error(t, err)
 	assert.Nil(t, config)
+}
+
+func TestLoadConfig_MultiSourceGemara(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `version: 0.1.0
+gemara:
+  sources:
+    - source: catalogs/nist-800-53.yaml
+    - source: catalogs/iso-42001.yaml
+    - source: ghcr.io/org/controls:v1
+      plain-http: true
+schemas:
+  - platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	require.NoError(t, err)
+	require.Len(t, config.Gemara.Sources, 3)
+	assert.Equal(t, "catalogs/nist-800-53.yaml", config.Gemara.Sources[0].Source)
+	assert.Equal(t, "catalogs/iso-42001.yaml", config.Gemara.Sources[1].Source)
+	assert.Equal(t, "ghcr.io/org/controls:v1", config.Gemara.Sources[2].Source)
+	assert.False(t, config.Gemara.Sources[0].PlainHTTP)
+	assert.True(t, config.Gemara.Sources[2].PlainHTTP)
+}
+
+func TestLoadConfig_LegacySingleSourceBackcompat(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+  plain-http: true
+schemas:
+  - platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	require.NoError(t, err)
+	require.Len(t, config.Gemara.Sources, 1)
+	assert.Equal(t, "catalogs/controls.yaml", config.Gemara.Sources[0].Source)
+	assert.True(t, config.Gemara.Sources[0].PlainHTTP)
+}
+
+func TestLoadConfig_GemaraBothSourceAndSources(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "complypack.yaml")
+
+	configContent := `version: 0.1.0
+gemara:
+  source: catalogs/controls.yaml
+  sources:
+    - source: catalogs/other.yaml
+schemas:
+  - platform: kubernetes
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
+	require.NoError(t, err)
+
+	_, err = LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot specify both")
 }

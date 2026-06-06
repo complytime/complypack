@@ -25,10 +25,50 @@ type SchemaRef struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// GemaraConfig represents Gemara catalog source configuration.
-type GemaraConfig struct {
+// GemaraSourceEntry represents a single Gemara artifact source.
+type GemaraSourceEntry struct {
 	Source    string `yaml:"source"`
-	PlainHTTP bool   `yaml:"plain-http,omitempty"` // Use HTTP instead of HTTPS for OCI registries
+	PlainHTTP bool   `yaml:"plain-http,omitempty"`
+}
+
+// GemaraConfig represents Gemara catalog source configuration.
+// Supports both legacy single-source format and multi-source format:
+//
+//	# Legacy (still supported):
+//	gemara:
+//	  source: catalogs/controls.yaml
+//
+//	# Multi-source:
+//	gemara:
+//	  sources:
+//	    - source: catalogs/controls.yaml
+//	    - source: ghcr.io/org/guidance:v1
+//	      plain-http: true
+type GemaraConfig struct {
+	Sources []GemaraSourceEntry
+}
+
+func (g *GemaraConfig) UnmarshalYAML(value *yaml.Node) error {
+	var raw struct {
+		Source    string             `yaml:"source"`
+		Sources  []GemaraSourceEntry `yaml:"sources"`
+		PlainHTTP bool              `yaml:"plain-http,omitempty"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	if raw.Source != "" && len(raw.Sources) > 0 {
+		return fmt.Errorf("gemara config: cannot specify both 'source' and 'sources'; use 'sources' for multiple entries")
+	}
+
+	if raw.Source != "" {
+		g.Sources = []GemaraSourceEntry{{Source: raw.Source, PlainHTTP: raw.PlainHTTP}}
+	} else {
+		g.Sources = raw.Sources
+	}
+
+	return nil
 }
 
 // ComplyPackConfig represents the structure of complypack.yaml.
@@ -92,8 +132,8 @@ func (c *ComplyPackConfig) ValidateForMCP() error {
 		return err
 	}
 
-	if c.Gemara.Source == "" {
-		return fmt.Errorf("missing required field: gemara.source")
+	if len(c.Gemara.Sources) == 0 {
+		return fmt.Errorf("missing required field: gemara.sources (at least one source required)")
 	}
 
 	if len(c.Schemas) == 0 {
