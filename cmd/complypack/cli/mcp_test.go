@@ -98,6 +98,91 @@ func TestParseSourceFlags(t *testing.T) {
 	}
 }
 
+func TestBuildConfigFromFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		sources []string
+		schemas []string
+		want    *config.ComplyPackConfig
+		wantErr string
+	}{
+		{
+			name:    "single source and schema",
+			sources: []string{"oci://ghcr.io/org/catalog:v1"},
+			schemas: []string{"kubernetes"},
+			want: &config.ComplyPackConfig{
+				Gemara: config.GemaraConfig{
+					Sources: []config.GemaraSourceEntry{
+						{Source: "oci://ghcr.io/org/catalog:v1", PlainHTTP: false},
+					},
+				},
+				Schemas: []config.SchemaRef{
+					{Platform: "kubernetes"},
+				},
+			},
+		},
+		{
+			name: "multiple sources and schemas",
+			sources: []string{
+				"oci://ghcr.io/org/catalog:v1",
+				"oci+http://localhost:5000/guidance:latest",
+			},
+			schemas: []string{
+				"kubernetes",
+				"ci=cue://cue.dev/x/githubactions@v0#Workflow",
+			},
+			want: &config.ComplyPackConfig{
+				Gemara: config.GemaraConfig{
+					Sources: []config.GemaraSourceEntry{
+						{Source: "oci://ghcr.io/org/catalog:v1", PlainHTTP: false},
+						{Source: "oci://localhost:5000/guidance:latest", PlainHTTP: true},
+					},
+				},
+				Schemas: []config.SchemaRef{
+					{Platform: "kubernetes"},
+					{Platform: "ci", Source: "cue://cue.dev/x/githubactions@v0#Workflow"},
+				},
+			},
+		},
+		{
+			name:    "empty sources and schemas",
+			sources: nil,
+			schemas: nil,
+			want: &config.ComplyPackConfig{
+				Gemara: config.GemaraConfig{
+					Sources: nil,
+				},
+				Schemas: nil,
+			},
+		},
+		{
+			name:    "invalid source",
+			sources: []string{""},
+			schemas: []string{"kubernetes"},
+			wantErr: "empty source flag value",
+		},
+		{
+			name:    "invalid schema",
+			sources: []string{"oci://ghcr.io/org/catalog:v1"},
+			schemas: []string{""},
+			wantErr: "empty schema flag value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildConfigFromFlags(tt.sources, tt.schemas)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestParseSchemaFlags(t *testing.T) {
 	tests := []struct {
 		name    string

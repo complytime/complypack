@@ -121,7 +121,6 @@ func buildConfigFromFlags(sources, schemas []string) (*config.ComplyPackConfig, 
 	}
 
 	return &config.ComplyPackConfig{
-		Version: "1.0",
 		Gemara:  config.GemaraConfig{Sources: entries},
 		Schemas: schemaRefs,
 	}, nil
