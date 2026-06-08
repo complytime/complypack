@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -31,6 +33,8 @@ func mcpServeCmd() *cobra.Command {
 	var (
 		configPath string
 		cacheDir   string
+		sources    []string
+		schemas    []string
 	)
 
 	cmd := &cobra.Command{
@@ -44,6 +48,12 @@ specified in complypack.yaml.
 
 Example:
   complypack mcp serve --config complypack.yaml
+
+  # Or use flags directly (no config file needed):
+  complypack mcp serve \
+    --source oci://ghcr.io/org/catalog:v1 \
+    --schema kubernetes \
+    --schema ci=cue://cue.dev/x/githubactions@v0#Workflow
 
 The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,10 +69,20 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 				resolvedCacheDir = filepath.Join(homeDir, ".complypack", "cache")
 			}
 
-			// Create MCP server
+			// Create MCP server options
 			opts := &mcp.ServerOptions{
-				ConfigPath: configPath,
-				CacheDir:   resolvedCacheDir,
+				CacheDir: resolvedCacheDir,
+			}
+
+			// If --source flags are present, build config from flags
+			if len(sources) > 0 {
+				cfg, err := buildConfigFromFlags(sources, schemas)
+				if err != nil {
+					return fmt.Errorf("failed to build config from flags: %w", err)
+				}
+				opts.Config = cfg
+			} else {
+				opts.ConfigPath = configPath
 			}
 
 			server, err := mcp.NewServer(ctx, opts)
@@ -82,6 +102,87 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 
 	cmd.Flags().StringVarP(&configPath, "config", "c", "complypack.yaml", "Path to complypack.yaml config file")
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Cache directory (default: $HOME/.complypack/cache)")
+	cmd.Flags().StringArrayVar(&sources, "source", nil, "Gemara OCI source (repeatable, e.g. oci://ghcr.io/org/catalog:v1)")
+	cmd.Flags().StringArrayVar(&schemas, "schema", nil, "Platform schema (repeatable, e.g. kubernetes or ci=cue://...)")
 
 	return cmd
+}
+
+// buildConfigFromFlags creates a ComplyPackConfig from --source and --schema flag values.
+func buildConfigFromFlags(sources, schemas []string) (*config.ComplyPackConfig, error) {
+	entries, err := parseSourceFlags(sources)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaRefs, err := parseSchemaFlags(schemas)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config.ComplyPackConfig{
+		Version: "1.0",
+		Gemara:  config.GemaraConfig{Sources: entries},
+		Schemas: schemaRefs,
+	}, nil
+}
+
+// parseSourceFlags converts --source flag values into GemaraSourceEntry values.
+//
+//   - oci://...        -> GemaraSourceEntry{Source: "oci://...", PlainHTTP: false}
+//   - oci+http://...   -> GemaraSourceEntry{Source: "oci://...", PlainHTTP: true}
+func parseSourceFlags(sources []string) ([]config.GemaraSourceEntry, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
+
+	entries := make([]config.GemaraSourceEntry, 0, len(sources))
+	for _, s := range sources {
+		if s == "" {
+			return nil, fmt.Errorf("empty source flag value")
+		}
+
+		entry := config.GemaraSourceEntry{}
+		if strings.HasPrefix(s, "oci+http://") {
+			entry.Source = "oci://" + strings.TrimPrefix(s, "oci+http://")
+			entry.PlainHTTP = true
+		} else {
+			entry.Source = s
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+// parseSchemaFlags converts --schema flag values into SchemaRef values.
+//
+//   - "kubernetes"                        -> SchemaRef{Platform: "kubernetes"} (embedded)
+//   - "ci=cue://cue.dev/x/actions@v0"    -> SchemaRef{Platform: "ci", Source: "cue://..."}
+func parseSchemaFlags(schemas []string) ([]config.SchemaRef, error) {
+	if len(schemas) == 0 {
+		return nil, nil
+	}
+
+	refs := make([]config.SchemaRef, 0, len(schemas))
+	for _, s := range schemas {
+		if s == "" {
+			return nil, fmt.Errorf("empty schema flag value")
+		}
+
+		ref := config.SchemaRef{}
+		if idx := strings.IndexByte(s, '='); idx >= 0 {
+			ref.Platform = s[:idx]
+			ref.Source = s[idx+1:]
+			if ref.Platform == "" {
+				return nil, fmt.Errorf("empty platform name in schema flag %q", s)
+			}
+			if ref.Source == "" {
+				return nil, fmt.Errorf("empty source for platform %q in schema flag %q", ref.Platform, s)
+			}
+		} else {
+			ref.Platform = s
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
 }
