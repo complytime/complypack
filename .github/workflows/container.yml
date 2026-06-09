@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   push:
-    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@main
+    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@e266be092e71ac9343fcd6d5cafc50402161981e # main
     permissions:
       contents: read
       packages: write
@@ -29,7 +29,7 @@ jobs:
 
   sign:
     needs: push
-    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@main
+    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@e266be092e71ac9343fcd6d5cafc50402161981e # main
     permissions:
       contents: read
       packages: write
