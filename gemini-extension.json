@@ -1,5 +1,5 @@
 {
   "name": "complypack",
   "description": "Generate Rego policies from Gemara catalogs and extract assessment requirements via MCP server",
-  "version": "2.0.0"
+  "version": "0.1.0"
 }
