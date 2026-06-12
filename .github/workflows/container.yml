@@ -27,8 +27,28 @@ jobs:
       image_description: "ComplyPack MCP server for compliance policy generation"
       platforms: linux/amd64,linux/arm64
 
-  sign:
+  scan:
     needs: push
+    if: >-
+      always()
+      && needs.push.result == 'success'
+      && needs.push.outputs.image != ''
+    uses: complytime/org-infra/.github/workflows/reusable_trivy_image_scan.yml@e266be092e71ac9343fcd6d5cafc50402161981e # main
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
+    with:
+      image_ref: ${{ needs.push.outputs.image }}:${{ needs.push.outputs.tag }}
+      image_digest: ${{ needs.push.outputs.digest }}
+      trivy_severity: HIGH,CRITICAL
+
+  sign:
+    needs: [push, scan]
+    if: >-
+      always()
+      && needs.push.result == 'success'
     uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@e266be092e71ac9343fcd6d5cafc50402161981e # main
     permissions:
       contents: read
@@ -37,5 +57,5 @@ jobs:
     with:
       image_name: ${{ needs.push.outputs.image }}
       digest: ${{ needs.push.outputs.digest }}
-      allowed_identity_regex: "https://github.com/complytime/.*"
-      verify_vuln: false
+      allowed_identity_regex: "https://github.com/complytime/org-infra(/.*)?$"
+      verify_vuln: ${{ needs.scan.result == 'success' }}
