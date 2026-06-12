@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -139,7 +140,13 @@ func runPrePackValidation(ctx context.Context, cfg *config.ComplyPackConfig, con
 	reg := evaluator.DefaultRegistry()
 	eval, err := reg.Get(cfg.EvaluatorID)
 	if err != nil {
-		return fmt.Errorf("evaluator %q not found: %w", cfg.EvaluatorID, err)
+		if errors.Is(err, evaluator.ErrNotFound) {
+			return fmt.Errorf(
+				"evaluator %q has no registered validator; use --skip-validation to pack without pre-pack checks",
+				cfg.EvaluatorID,
+			)
+		}
+		return fmt.Errorf("evaluator %q: %w", cfg.EvaluatorID, err)
 	}
 
 	// Load CUE schema for contract validation

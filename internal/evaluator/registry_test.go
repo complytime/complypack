@@ -50,7 +50,7 @@ func TestGetUnknown(t *testing.T) {
 
 	_, err := r.Get("unknown")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "evaluator not found")
+	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Contains(t, err.Error(), "unknown")
 }
 

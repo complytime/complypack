@@ -3,8 +3,10 @@
 package cli
 
 import (
+	"context"
 	"testing"
 
+	"github.com/complytime/complypack/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,4 +38,18 @@ func TestPackCommand(t *testing.T) {
 		err = cmd.Args(cmd, []string{"dir", "ref"})
 		assert.NoError(t, err)
 	})
+}
+
+func TestRunPrePackValidation_UnregisteredEvaluator(t *testing.T) {
+	cfg := &config.ComplyPackConfig{
+		ID:          "io.complytime.test",
+		EvaluatorID: "ampel",
+		Version:     "1.0.0",
+	}
+
+	err := runPrePackValidation(context.Background(), cfg, t.TempDir(), false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `evaluator "ampel" has no registered validator`)
+	assert.Contains(t, err.Error(), "--skip-validation")
+	assert.NotContains(t, err.Error(), "not found")
 }

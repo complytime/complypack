@@ -3,10 +3,14 @@
 package evaluator
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
 )
+
+// ErrNotFound is returned when a requested evaluator is not in the registry.
+var ErrNotFound = errors.New("evaluator not found")
 
 // Registry maps evaluator IDs to Evaluator implementations.
 // Thread-safe for concurrent access.
@@ -37,7 +41,7 @@ func (r *Registry) Get(id string) (Evaluator, error) {
 	defer r.mu.RUnlock()
 	e, ok := r.evaluators[id]
 	if !ok {
-		return nil, fmt.Errorf("evaluator not found: %q", id)
+		return nil, fmt.Errorf("%w: %q", ErrNotFound, id)
 	}
 	return e, nil
 }
