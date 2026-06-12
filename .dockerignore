@@ -1,0 +1,12 @@
+.git
+.github
+.complytime
+.cursor
+.opencode
+docs
+kb
+skills
+tests
+acceptance
+*.md
+!LICENSE

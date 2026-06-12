@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "complypack": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i",
+               "ghcr.io/complytime/complypack:VERSION",
+               "mcp", "serve",
+               "--source", "oci://YOUR_REGISTRY/gemara/YOUR_CATALOG:TAG",
+               "--schema", "YOUR_PLATFORM"]
+    }
+  }
+}

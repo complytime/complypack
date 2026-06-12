@@ -31,7 +31,12 @@ type Server struct {
 // ServerOptions configures ComplyPack MCP server initialization.
 type ServerOptions struct {
 	// ConfigPath is the path to complypack.yaml.
+	// Ignored when Config is set.
 	ConfigPath string
+
+	// Config provides configuration directly, bypassing file loading.
+	// When set, ConfigPath is ignored.
+	Config *config.ComplyPackConfig
 
 	// OCIStore is the directory for OCI artifact caching.
 	OCIStore string
@@ -58,10 +63,16 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		return nil, fmt.Errorf("ServerOptions cannot be nil")
 	}
 
-	// Load config
-	cfg, err := config.LoadConfig(opts.ConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+	// Load config: use provided config or load from file
+	var cfg *config.ComplyPackConfig
+	if opts.Config != nil {
+		cfg = opts.Config
+	} else {
+		var err error
+		cfg, err = config.LoadConfig(opts.ConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config: %w", err)
+		}
 	}
 	if err := cfg.ValidateForMCP(); err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
