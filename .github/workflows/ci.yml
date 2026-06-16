@@ -58,7 +58,7 @@ jobs:
 
   call_reusable_security:
     name: Security Scan
-    uses: complytime/org-infra/.github/workflows/reusable_security.yml@d35e6fc04dd11151a92522287782344aaea91388 # main
+    uses: complytime/org-infra/.github/workflows/reusable_security.yml@e30c5cd87e7aeddb8aa7bfeccff4d362bd886270 # main
     permissions:
       contents: read
       id-token: write
