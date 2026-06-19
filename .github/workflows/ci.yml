@@ -55,6 +55,7 @@ jobs:
     permissions:
       contents: read
       issues: read
+      pull-requests: read
 
   call_reusable_security:
     name: Security Scan
