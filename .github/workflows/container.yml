@@ -40,7 +40,7 @@ jobs:
       security-events: write
       id-token: write
     with:
-      image_ref: ${{ needs.push.outputs.image }}:${{ needs.push.outputs.tag }}
+      image_ref: ${{ needs.push.outputs.image_ref }}
       image_digest: ${{ needs.push.outputs.digest }}
       trivy_severity: HIGH,CRITICAL
 
