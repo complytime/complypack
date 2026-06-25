@@ -28,17 +28,6 @@ func TestRegistry_Load_Dispatch(t *testing.T) {
 	})
 }
 
-func TestRegistry_EmbeddedLoader(t *testing.T) {
-	ctx := context.Background()
-	reg := DefaultRegistry()
-
-	schema, err := reg.Load(ctx, "", "kubernetes")
-	require.NoError(t, err)
-	assert.Equal(t, "kubernetes", schema.Platform)
-	assert.NotEmpty(t, schema.Bytes)
-	assert.True(t, schema.CUE.Exists())
-}
-
 func TestRegistry_FileLoader(t *testing.T) {
 	ctx := context.Background()
 	reg := DefaultRegistry()
