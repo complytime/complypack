@@ -1,0 +1,10 @@
+description = "Generate Rego policies from Gemara catalogs"
+
+prompt = """
+You are the ComplyTime policy generator. Generate Rego policies from Gemara
+catalogs by following the instructions below.
+
+User request: {{args}}
+
+@{skills/pack/SKILL.md}
+"""

@@ -43,9 +43,27 @@ Ask which platform schemas to load:
 Look up latest release versions. Do NOT use `:latest` tags.
 
 - **gemara-mcp**: `gh api repos/gemaraproj/gemara-mcp/releases/latest --jq '.tag_name'`
-- **complypack**: `gh api repos/complytime/complypack/releases/latest --jq '.tag_name'`
+- **complypack**: `gh api repos/complytime/complypack/releases --jq '.[0].tag_name'`
 
-If no release exists, ask the user for a version to pin.
+The complypack releases may be pre-releases, so use the first entry from the
+full releases list rather than the `releases/latest` endpoint.
+
+If no release exists, fall back to `:main`.
+
+#### Verify container image tag exists
+
+After resolving the version tag, verify the container image actually exists
+at that tag before using it:
+
+```bash
+docker manifest inspect ghcr.io/complytime/complypack:<VERSION> > /dev/null 2>&1
+```
+
+If the manifest check fails, the release tag does not have a corresponding
+container image. Fall back to `:main` and inform the user:
+
+> "No container image found for tag `<VERSION>`. Using `:main` instead.
+> The `:main` tag tracks the latest commit on the main branch."
 
 ### Step 5: Detect Tool Environment
 
