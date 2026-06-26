@@ -43,7 +43,10 @@ Ask which platform schemas to load:
 Look up latest release versions. Do NOT use `:latest` tags.
 
 - **gemara-mcp**: `gh api repos/gemaraproj/gemara-mcp/releases/latest --jq '.tag_name'`
-- **complypack**: `gh api repos/complytime/complypack/releases/latest --jq '.tag_name'`
+- **complypack**: `gh api repos/complytime/complypack/releases --jq '.[0].tag_name'`
+
+The complypack releases may be pre-releases, so use the first entry from the
+full releases list rather than the `releases/latest` endpoint.
 
 If no release exists, ask the user for a version to pin.
 

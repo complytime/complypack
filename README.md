@@ -108,6 +108,10 @@ complypack mcp serve --config /path/to/complypack.yaml
 | `test_policy`                  | Run policy against test data with schema validation  |
 | `get_assessment_requirements`  | Extract assessment requirements with parameters      |
 
+### AI Tool Setup
+
+ComplyPack is available as a plugin for Claude Code, Gemini CLI, and OpenCode. See [INSTALL.md](INSTALL.md) for setup instructions.
+
 ## Architecture
 
 ### ComplyPack OCI Artifact

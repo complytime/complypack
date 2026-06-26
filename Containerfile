@@ -11,6 +11,8 @@ FROM registry.access.redhat.com/ubi9-micro:9.6-4@sha256:b498b3ea26111ab4b81d6513
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
 COPY --from=builder /build/complypack /usr/local/bin/complypack
 
+LABEL io.modelcontextprotocol.server.name="io.github.complytime/complypack"
+
 ARG USER_UID=10001
 USER ${USER_UID}
 

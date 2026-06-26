@@ -1,5 +1,11 @@
 {
   "name": "comply",
   "description": "Gemara compliance pipeline and policy generation via MCP server",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "mcpServers": {
+    "complypack": {
+      "command": "complypack",
+      "args": ["mcp", "serve"]
+    }
+  }
 }
