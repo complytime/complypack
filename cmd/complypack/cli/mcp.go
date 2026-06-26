@@ -52,8 +52,8 @@ Example:
   # Or use flags directly (no config file needed):
   complypack mcp serve \
     --source oci://ghcr.io/org/catalog:v1 \
-    --schema kubernetes \
-    --schema ci=cue://cue.dev/x/githubactions@v0#Workflow
+    --schema kubernetes-deployment \
+    --schema ci-github-actions
 
 The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -155,8 +155,8 @@ func parseSourceFlags(sources []string) ([]config.GemaraSourceEntry, error) {
 
 // parseSchemaFlags converts --schema flag values into SchemaRef values.
 //
-//   - "kubernetes"                        -> SchemaRef{Platform: "kubernetes"} (embedded)
-//   - "ci=cue://cue.dev/x/actions@v0"    -> SchemaRef{Platform: "ci", Source: "cue://..."}
+//   - "kubernetes-deployment"                               -> SchemaRef{Platform: "kubernetes-deployment"} (index default)
+//   - "ci-github-actions=cue://cue.dev/x/githubactions@v0#Workflow" -> SchemaRef{Platform: "ci-github-actions", Source: "cue://..."}
 func parseSchemaFlags(schemas []string) ([]config.SchemaRef, error) {
 	if len(schemas) == 0 {
 		return nil, nil
