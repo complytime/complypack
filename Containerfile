@@ -12,6 +12,9 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bun
 COPY --from=builder /build/complypack /usr/local/bin/complypack
 
 ENV DOCKER_CONFIG=/.docker
+ENV XDG_CACHE_HOME=/tmp/cache
+
+LABEL io.modelcontextprotocol.server.name="io.github.complytime/complypack"
 
 ARG USER_UID=10001
 USER ${USER_UID}

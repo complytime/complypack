@@ -9,14 +9,16 @@ an MCP server for working with Gemara catalogs.
 
 ## Claude Code
 
-Install from the marketplace:
+Add the ComplyTime marketplace and install the plugin:
 
-```
-/plugin install complypack@claude-plugins-official
+```text
+/plugin marketplace add complytime/complypack
+/plugin install comply@complytime
 ```
 
-The skill is auto-discovered. To configure the MCP server, create a
-`.mcp.json` in your project:
+The skills (`/comply:setup`, `/comply:pack`, `/comply:pipeline`) are
+auto-discovered once the plugin is installed. To configure the MCP server,
+create a `.mcp.json` in your project:
 
 ```json
 {
@@ -24,7 +26,7 @@ The skill is auto-discovered. To configure the MCP server, create a
     "complypack": {
       "command": "docker",
       "args": ["run", "--rm", "-i",
-               "ghcr.io/complytime/complypack:latest",
+               "ghcr.io/complytime/complypack:main",
                "mcp", "serve",
                "--source", "oci://your-registry/gemara/your-catalog:v1",
                "--schema", "ci-github-actions"]
@@ -40,7 +42,7 @@ references and target platforms.
 
 ```json
 "args": ["run", "--rm", "-i",
-         "ghcr.io/complytime/complypack:latest",
+         "ghcr.io/complytime/complypack:main",
          "mcp", "serve",
          "--source", "oci://registry.example.com/gemara/controls:v1",
          "--source", "oci://registry.example.com/gemara/guidance:v1",
@@ -56,6 +58,54 @@ Use `oci+http://` for registries without TLS:
 "--source", "oci+http://localhost:5001/gemara/controls:v1"
 ```
 
+## Cursor
+
+Add the MCP server to your Cursor settings. Open **Settings > MCP** and add
+a new server with the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "complypack": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i",
+               "ghcr.io/complytime/complypack:main",
+               "mcp", "serve",
+               "--source", "oci://your-registry/gemara/your-catalog:v1",
+               "--schema", "ci-github-actions"]
+    }
+  }
+}
+```
+
+## Gemini CLI
+
+Install the extension:
+
+```bash
+gemini extensions install https://github.com/complytime/complypack
+```
+
+For local development, link instead of install:
+
+```bash
+gemini extensions link /path/to/complypack
+```
+
+Verify the extension is loaded:
+
+```bash
+gemini extensions list
+```
+
+The following slash commands are available in a Gemini session:
+
+| Command      | Description                                  |
+|--------------|----------------------------------------------|
+| `/setup`     | Configure MCP servers for this project        |
+| `/pack`      | Generate Rego policies from Gemara catalogs   |
+| `/pipeline`  | Run the scoping, mapping, adherence pipeline  |
+
 ## OpenCode
 
 Skills and custom commands are auto-discovered from `.opencode/skills/`
@@ -69,7 +119,7 @@ To configure the MCP server, create a `.mcp.json` in your project:
     "complypack": {
       "command": "docker",
       "args": ["run", "--rm", "-i",
-               "ghcr.io/complytime/complypack:latest",
+               "ghcr.io/complytime/complypack:main",
                "mcp", "serve",
                "--source", "oci://your-registry/gemara/your-catalog:v1",
                "--schema", "ci-github-actions"]
@@ -80,17 +130,33 @@ To configure the MCP server, create a `.mcp.json` in your project:
 
 Or use the setup command to generate it interactively:
 
-```
+```text
 /comply-setup
 ```
 
 ### Available commands
 
-| Command | Description |
-|---------|-------------|
+| Command            | Description                                  |
+|--------------------|----------------------------------------------|
 | `/comply-pipeline` | Run the scoping, mapping, adherence pipeline |
-| `/comply-pack` | Generate Rego policies from the child policy |
-| `/comply-setup` | Configure the MCP server for this project |
+| `/comply-pack`     | Generate Rego policies from the child policy |
+| `/comply-setup`    | Configure the MCP server for this project    |
+
+## SELinux (Fedora / RHEL)
+
+On systems with SELinux enforcing, volume mounts require the `:z` suffix so
+the container process can read the files:
+
+```json
+"args": ["run", "--rm", "-i",
+         "-v", "./complypack.yaml:/config/complypack.yaml:ro,z",
+         "ghcr.io/complytime/complypack:main",
+         "mcp", "serve",
+         "--config", "/config/complypack.yaml"]
+```
+
+Without `:z` you will see `permission denied` errors when the server tries
+to load sources from mounted paths.
 
 ## Using a config file (advanced)
 
@@ -98,8 +164,8 @@ If you prefer YAML configuration, mount a `complypack.yaml`:
 
 ```json
 "args": ["run", "--rm", "-i",
-         "-v", "./complypack.yaml:/config/complypack.yaml:ro",
-         "ghcr.io/complytime/complypack:latest",
+         "-v", "./complypack.yaml:/config/complypack.yaml:ro,z",
+         "ghcr.io/complytime/complypack:main",
          "mcp", "serve",
          "--config", "/config/complypack.yaml"]
 ```
@@ -108,8 +174,8 @@ If you prefer YAML configuration, mount a `complypack.yaml`:
 
 Images include SLSA provenance and SBOM attestations. To verify:
 
-```
-gh attestation verify oci://ghcr.io/complytime/complypack:latest \
+```bash
+gh attestation verify oci://ghcr.io/complytime/complypack:main \
   --owner complytime
 ```
 

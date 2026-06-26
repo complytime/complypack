@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "description": "Gemara compliance pipeline and policy generation via MCP server",
   "author": {
-    "name": "ComplyTime Authors",
-    "url": "https://github.com/complytime"
+    "name": "ComplyTime Authors"
   },
+  "homepage": "https://github.com/complytime",
   "repository": "https://github.com/complytime/complypack",
   "license": "Apache-2.0",
   "keywords": [
