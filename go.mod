@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	cuelang.org/go v0.16.1
-	github.com/gemaraproj/go-gemara v0.6.0
+	github.com/gemaraproj/go-gemara v0.7.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/onsi/ginkgo/v2 v2.32.0
