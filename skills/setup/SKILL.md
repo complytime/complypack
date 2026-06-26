@@ -47,7 +47,24 @@ Look up latest release versions. Do NOT use `:latest` tags.
 
 If no release exists, ask the user for a version to pin.
 
-### Step 5: Write Configuration
+### Step 5: Detect Tool Environment
+
+Determine which AI coding tool is running and adapt the output:
+
+- **Claude Code**: Check if `.claude-plugin/` exists in the repo. Write `.mcp.json`.
+- **OpenCode**: Check if `.opencode/` exists in the repo. Write `.mcp.json`. Verify that `.opencode/skills/` symlinks exist — if not, create them:
+  ```bash
+  mkdir -p .opencode/skills
+  ln -sf ../../skills/pipeline .opencode/skills/pipeline
+  ln -sf ../../skills/pack .opencode/skills/pack
+  ln -sf ../../skills/setup .opencode/skills/setup
+  ```
+- **Cursor**: Check if `.cursor-plugin/` exists. Write `.mcp.json`.
+- **Unknown**: Write `.mcp.json` and inform the user about skill discovery.
+
+### Step 6: Write Configuration
+
+Write `.mcp.json`:
 
 ```json
 {
@@ -70,8 +87,10 @@ If no release exists, ask the user for a version to pin.
 }
 ```
 
-### Step 6: Verify
+### Step 7: Verify
 
 Check that each server starts and responds. Report loaded catalogs and schemas.
 
-> "MCP servers configured. Use `/comply:pipeline` to start the compliance pipeline or `/comply:pack` to generate assessment logic."
+**Claude Code**: Inform user to use `/comply:pipeline` or `/comply:pack`.
+
+**OpenCode**: Inform user to use `/comply-pipeline` or `/comply-pack` (custom commands) or to ask "run the comply pipeline" (skill-based invocation).

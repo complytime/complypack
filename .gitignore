@@ -34,8 +34,10 @@ docs/analysis/
 docs/superpowers/
 docs/demo/
 
-# Development tooling
-.opencode/
+# Development tooling — track skills and commands, ignore the rest
+.opencode/*
+!.opencode/skills/
+!.opencode/commands/
 openspec/
 
 # Unbound Force — managed by uf init

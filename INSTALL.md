@@ -58,7 +58,10 @@ Use `oci+http://` for registries without TLS:
 
 ## OpenCode
 
-Add to your `opencode.json`:
+Skills and custom commands are auto-discovered from `.opencode/skills/`
+and `.opencode/commands/` (committed as symlinks). No manual setup needed.
+
+To configure the MCP server, create a `.mcp.json` in your project:
 
 ```json
 {
@@ -74,6 +77,20 @@ Add to your `opencode.json`:
   }
 }
 ```
+
+Or use the setup command to generate it interactively:
+
+```
+/comply-setup
+```
+
+### Available commands
+
+| Command | Description |
+|---------|-------------|
+| `/comply-pipeline` | Run the scoping, mapping, adherence pipeline |
+| `/comply-pack` | Generate Rego policies from the child policy |
+| `/comply-setup` | Configure the MCP server for this project |
 
 ## Using a config file (advanced)
 
