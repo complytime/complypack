@@ -1,0 +1,43 @@
+# CI/CD platforms
+ci-github-actions:
+  source: "cue://cue.dev/x/githubactions@v0#Workflow"
+ci-gitlab:
+  source: "cue://cue.dev/x/gitlab/gitlabci#Pipeline"
+ci-azure-pipelines:
+  source: "cue://cue.dev/x/azurepipelines#Pipeline"
+
+# Kubernetes — per resource type
+kubernetes-deployment:
+  source: "cue://cue.dev/x/k8s.io@v0/api/apps/v1#Deployment"
+kubernetes-pod:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#Pod"
+kubernetes-daemonset:
+  source: "cue://cue.dev/x/k8s.io@v0/api/apps/v1#DaemonSet"
+kubernetes-statefulset:
+  source: "cue://cue.dev/x/k8s.io@v0/api/apps/v1#StatefulSet"
+kubernetes-cronjob:
+  source: "cue://cue.dev/x/k8s.io@v0/api/batch/v1#CronJob"
+kubernetes-job:
+  source: "cue://cue.dev/x/k8s.io@v0/api/batch/v1#Job"
+kubernetes-service:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#Service"
+kubernetes-networkpolicy:
+  source: "cue://cue.dev/x/k8s.io@v0/api/networking/v1#NetworkPolicy"
+kubernetes-ingress:
+  source: "cue://cue.dev/x/k8s.io@v0/api/networking/v1#Ingress"
+kubernetes-role:
+  source: "cue://cue.dev/x/k8s.io@v0/api/rbac/v1#Role"
+kubernetes-clusterrole:
+  source: "cue://cue.dev/x/k8s.io@v0/api/rbac/v1#ClusterRole"
+kubernetes-rolebinding:
+  source: "cue://cue.dev/x/k8s.io@v0/api/rbac/v1#RoleBinding"
+kubernetes-clusterrolebinding:
+  source: "cue://cue.dev/x/k8s.io@v0/api/rbac/v1#ClusterRoleBinding"
+kubernetes-serviceaccount:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#ServiceAccount"
+kubernetes-configmap:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#ConfigMap"
+kubernetes-secret:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#Secret"
+kubernetes-namespace:
+  source: "cue://cue.dev/x/k8s.io@v0/api/core/v1#Namespace"

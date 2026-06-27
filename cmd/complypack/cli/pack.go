@@ -16,6 +16,7 @@ import (
 	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/complytime/complypack/pkg/complypack"
+	"github.com/complytime/complypack/schemas"
 	"github.com/spf13/cobra"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
@@ -149,25 +150,28 @@ func runPrePackValidation(ctx context.Context, cfg *config.ComplyPackConfig, con
 		return fmt.Errorf("evaluator %q: %w", cfg.EvaluatorID, err)
 	}
 
-	// Load CUE schema for contract validation
-	var cueSchema cue.Value
-	if len(cfg.Schemas) > 0 {
-		ref := cfg.Schemas[0]
-		source := ref.Source
-		if source == "" && ref.Path != "" {
-			source = "file://" + ref.Path
-		}
+	// Load CUE schemas for contract validation
+	index, err := schemas.LoadIndex()
+	if err != nil {
+		return fmt.Errorf("loading schema index: %w", err)
+	}
 
+	var cueSchemas []cue.Value
+	if len(cfg.Schemas) > 0 {
 		schemaReg := schema.DefaultRegistry()
-		s, err := schemaReg.Load(ctx, source, ref.Platform)
-		if err != nil {
-			return fmt.Errorf("loading CUE schema for %s: %w", ref.Platform, err)
+		for _, ref := range cfg.Schemas {
+			source := schemas.ResolveSource(ref, index)
+
+			s, err := schemaReg.Load(ctx, source, ref.Platform)
+			if err != nil {
+				return fmt.Errorf("loading CUE schema for %s: %w", ref.Platform, err)
+			}
+			cueSchemas = append(cueSchemas, s.CUE)
 		}
-		cueSchema = s.CUE
 	}
 
 	log.Printf("Validating policies in %s...", contentDir)
-	result, err := prepack.Validate(ctx, contentDir, eval, cueSchema, prepack.ValidationOptions{
+	result, err := prepack.Validate(ctx, contentDir, eval, cueSchemas, prepack.ValidationOptions{
 		SkipTests: skipTests,
 	})
 	if err != nil {

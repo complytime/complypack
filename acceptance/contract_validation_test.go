@@ -5,7 +5,6 @@ package acceptance_test
 import (
 	"context"
 
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/complytime/complypack/internal/validator"
 	"github.com/complytime/complypack/schemas"
@@ -23,7 +22,7 @@ var _ = Describe("Contract Validation", func() {
 	Describe("CUE registry module with definition fragment", func() {
 		It("validates GitHub Actions workflow paths without false positives", func() {
 			reg := schema.DefaultRegistry()
-			s, err := reg.Load(ctx, "cue://cue.dev/x/githubactions@v0#Workflow", "ci")
+			s, err := reg.Load(ctx, "cue://cue.dev/x/githubactions@v0#Workflow", "ci-github-actions")
 			Expect(err).NotTo(HaveOccurred())
 
 			policy := `package ci.example
@@ -51,79 +50,63 @@ deny contains msg if {
 
 		It("returns error when fragment is missing on definitions-only module", func() {
 			reg := schema.DefaultRegistry()
-			_, err := reg.Load(ctx, "cue://cue.dev/x/githubactions@v0", "ci")
+			_, err := reg.Load(ctx, "cue://cue.dev/x/githubactions@v0", "ci-github-actions")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("#Workflow"))
 		})
 	})
 
-	Describe("Embedded schema with top type and pattern constraints", func() {
-		It("validates CI schema paths with top type", func() {
-			data, err := schemas.GetBuiltInCUESchema("ci")
+	Describe("Schema index resolution", func() {
+		It("loads Kubernetes Deployment schema from index and validates paths", func() {
+			index, err := schemas.LoadIndex()
 			Expect(err).NotTo(HaveOccurred())
 
-			cueCtx := cuecontext.New()
-			schema := cueCtx.CompileBytes(data)
-			Expect(schema.Err()).NotTo(HaveOccurred())
+			entry, ok := index["kubernetes-deployment"]
+			Expect(ok).To(BeTrue())
+
+			reg := schema.DefaultRegistry()
+			s, err := reg.Load(ctx, entry.Source, "kubernetes-deployment")
+			Expect(err).NotTo(HaveOccurred())
+
+			policy := `package kubernetes.deployment
+import rego.v1
+
+deny contains msg if {
+    input.metadata.name == ""
+    msg := "Deployment must have a name"
+}
+
+deny contains msg if {
+    not input.spec.replicas
+    msg := "Deployment must specify replicas"
+}
+`
+			violations, err := validator.CheckContract("policy.rego", policy, s.CUE)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(violations).To(BeEmpty(), "valid Deployment paths should not produce violations")
+		})
+
+		It("rejects bogus paths against strict upstream schema", func() {
+			index, err := schemas.LoadIndex()
+			Expect(err).NotTo(HaveOccurred())
+
+			entry := index["ci-github-actions"]
+
+			reg := schema.DefaultRegistry()
+			s, err := reg.Load(ctx, entry.Source, "ci-github-actions")
+			Expect(err).NotTo(HaveOccurred())
 
 			policy := `package ci.example
 import rego.v1
 
 deny contains msg if {
-    input.on.push.branches
-    input.on.pull_request.types
-    input.on.schedule
+    input.completely_bogus
     msg := "test"
 }
 `
-			violations, err := validator.CheckContract("policy.rego", policy, schema)
+			violations, err := validator.CheckContract("policy.rego", policy, s.CUE)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(violations).To(BeEmpty(), "top type paths should not produce violations")
-		})
-
-		It("validates CI schema paths with pattern constraints", func() {
-			data, err := schemas.GetBuiltInCUESchema("ci")
-			Expect(err).NotTo(HaveOccurred())
-
-			cueCtx := cuecontext.New()
-			schema := cueCtx.CompileBytes(data)
-			Expect(schema.Err()).NotTo(HaveOccurred())
-
-			policy := `package ci.example
-import rego.v1
-
-deny contains msg if {
-    job := input.jobs.build
-    job.steps
-    job["runs-on"]
-    msg := "test"
-}
-`
-			violations, err := validator.CheckContract("policy.rego", policy, schema)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(violations).To(BeEmpty(), "pattern constraint paths should not produce violations")
-		})
-
-		It("validates Kubernetes schema paths with map patterns", func() {
-			data, err := schemas.GetBuiltInCUESchema("kubernetes")
-			Expect(err).NotTo(HaveOccurred())
-
-			cueCtx := cuecontext.New()
-			schema := cueCtx.CompileBytes(data)
-			Expect(schema.Err()).NotTo(HaveOccurred())
-
-			policy := `package kubernetes.example
-import rego.v1
-
-deny contains msg if {
-    input.metadata.labels.app
-    input.metadata.annotations.owner
-    msg := "test"
-}
-`
-			violations, err := validator.CheckContract("policy.rego", policy, schema)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(violations).To(BeEmpty(), "map pattern paths should not produce violations")
+			Expect(violations).NotTo(BeEmpty(), "bogus paths should produce violations against strict schema")
 		})
 	})
 })

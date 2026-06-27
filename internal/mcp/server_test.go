@@ -6,12 +6,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/schema"
-	"github.com/complytime/complypack/schemas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +34,7 @@ version: 0.1.0
 gemara:
   source: ` + filepath.Join(ociStore, "controls-v1", "catalog.yaml") + `
 schemas:
-  - platform: kubernetes
+  - platform: kubernetes-deployment
 `
 		err := os.WriteFile(configPath, []byte(configYAML), 0600)
 		require.NoError(t, err)
@@ -59,7 +57,7 @@ schemas:
 
 		// Verify schemas loaded
 		assert.NotEmpty(t, store.schemas)
-		assert.Contains(t, store.schemas, "kubernetes")
+		assert.Contains(t, store.schemas, "kubernetes-deployment")
 	})
 
 	t.Run("error when catalog missing", func(t *testing.T) {
@@ -126,36 +124,43 @@ schemas:
 func TestLoadSchemas(t *testing.T) {
 	ctx := context.Background()
 
-	// Create schema refs for all built-in platforms (no source = use embedded)
-	var refs []config.SchemaRef
-	for _, platform := range schemas.BuiltInPlatforms {
-		refs = append(refs, config.SchemaRef{Platform: platform})
-	}
+	t.Run("resolves index defaults for known platform", func(t *testing.T) {
+		refs := []config.SchemaRef{
+			{Platform: "ci-github-actions"},
+			{Platform: "kubernetes-deployment"},
+		}
 
-	t.Run("loads all built-in schemas with CUE values", func(t *testing.T) {
 		schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
 		require.NoError(t, err)
-		require.NotNil(t, schemaMap)
-		require.NotNil(t, cueSchemaMap)
-
-		for _, platform := range schemas.BuiltInPlatforms {
-			assert.Contains(t, schemaMap, platform, "missing schema for platform %s", platform)
-			assert.NotEmpty(t, schemaMap[platform])
-			assert.Contains(t, cueSchemaMap, platform, "missing CUE schema for platform %s", platform)
-			assert.True(t, cueSchemaMap[platform].Exists(), "CUE schema for %s should exist", platform)
-		}
+		assert.Contains(t, schemaMap, "ci-github-actions")
+		assert.NotEmpty(t, schemaMap["ci-github-actions"])
+		assert.Contains(t, cueSchemaMap, "ci-github-actions")
+		assert.True(t, cueSchemaMap["ci-github-actions"].Exists())
+		assert.Contains(t, schemaMap, "kubernetes-deployment")
+		assert.NotEmpty(t, schemaMap["kubernetes-deployment"])
+		assert.Contains(t, cueSchemaMap, "kubernetes-deployment")
+		assert.True(t, cueSchemaMap["kubernetes-deployment"].Exists())
 	})
 
-	t.Run("schema content is valid JSON", func(t *testing.T) {
+	t.Run("skips unknown platform with no source", func(t *testing.T) {
+		refs := []config.SchemaRef{
+			{Platform: "unknown-platform"},
+		}
+
 		schemaMap, _, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
 		require.NoError(t, err)
+		assert.NotContains(t, schemaMap, "unknown-platform")
+	})
 
-		for platform, data := range schemaMap {
-			assert.NotEmpty(t, data, "empty schema for platform %s", platform)
-			trimmed := strings.TrimSpace(string(data))
-			assert.True(t, strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "["),
-				"schema for %s doesn't look like JSON", platform)
+	t.Run("explicit source overrides index default", func(t *testing.T) {
+		refs := []config.SchemaRef{
+			{Platform: "ci-github-actions", Source: "cue://cue.dev/x/githubactions@v0#Workflow"},
 		}
+
+		schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+		require.NoError(t, err)
+		assert.Contains(t, schemaMap, "ci-github-actions")
+		assert.True(t, cueSchemaMap["ci-github-actions"].Exists())
 	})
 }
 
@@ -221,7 +226,7 @@ gemara:
     - source: ` + sourceA + `
     - source: ` + sourceB + `
 schemas:
-  - platform: kubernetes
+  - platform: kubernetes-deployment
 `
 	err := os.WriteFile(configPath, []byte(configYAML), 0600)
 	require.NoError(t, err)

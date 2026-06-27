@@ -15,6 +15,7 @@ import (
 	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/internal/requirement"
 	"github.com/complytime/complypack/internal/schema"
+	"github.com/complytime/complypack/schemas"
 	"github.com/gemaraproj/go-gemara/bundle"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -239,17 +240,19 @@ func (s *Server) Run(ctx context.Context, transport mcp.Transport) error {
 }
 
 // loadSchemas loads platform schemas via the schema registry.
+// If a schema ref has no explicit source, it checks the schema index for a default.
 func loadSchemas(ctx context.Context, schemaRefs []config.SchemaRef, reg *schema.Registry) (map[string][]byte, map[string]cue.Value, error) {
+	index, err := schemas.LoadIndex()
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading schema index: %w", err)
+	}
+
 	schemaMap := make(map[string][]byte)
 	cueSchemaMap := make(map[string]cue.Value)
 
 	for _, ref := range schemaRefs {
 		platform := ref.Platform
-
-		source := ref.Source
-		if source == "" && ref.Path != "" {
-			source = "file://" + ref.Path
-		}
+		source := schemas.ResolveSource(ref, index)
 
 		s, err := reg.Load(ctx, source, platform)
 		if err != nil {

@@ -23,7 +23,6 @@ func DefaultRegistry() *Registry {
 		&CUELoader{},
 		&URLLoader{},
 		&FileLoader{},
-		&EmbeddedLoader{},
 		&LegacyLoader{},
 	)
 }

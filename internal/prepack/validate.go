@@ -52,8 +52,8 @@ func (r *ValidationResult) Valid() bool {
 //  2. Contract check -- verify input.* references against CUE schema
 //  3. Test execution -- run policy unit tests
 //
-// If cueSchema is a zero value, contract checking is skipped with a warning.
-func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, cueSchema cue.Value, opts ValidationOptions) (*ValidationResult, error) {
+// If cueSchemas is empty, contract checking is skipped with a warning.
+func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, cueSchemas []cue.Value, opts ValidationOptions) (*ValidationResult, error) {
 	result := &ValidationResult{}
 
 	ext := eval.FileExtension()
@@ -95,19 +95,35 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 		return result, nil
 	}
 
-	// Stage 2: Contract check (skip if no schema provided)
-	if !cueSchema.Exists() {
-		slog.Warn("no CUE schema provided, skipping contract validation")
+	// Stage 2: Contract check — pass if ANY schema validates
+	if len(cueSchemas) == 0 {
+		slog.Warn("no CUE schemas provided, skipping contract validation")
 	} else {
 		for relPath, src := range fileSources {
 			if isTestFile(relPath, ext) {
 				continue
 			}
-			violations, contractErr := eval.CheckContract(relPath, src, cueSchema)
-			if contractErr != nil {
-				return nil, fmt.Errorf("contract check failed for %s: %w", relPath, contractErr)
+			var bestViolations []evaluator.ContractViolation
+			passed := false
+			for _, s := range cueSchemas {
+				if !s.Exists() {
+					continue
+				}
+				violations, contractErr := eval.CheckContract(relPath, src, s)
+				if contractErr != nil {
+					return nil, fmt.Errorf("contract check failed for %s: %w", relPath, contractErr)
+				}
+				if len(violations) == 0 {
+					passed = true
+					break
+				}
+				if bestViolations == nil || len(violations) < len(bestViolations) {
+					bestViolations = violations
+				}
 			}
-			result.ContractViolations = append(result.ContractViolations, violations...)
+			if !passed && bestViolations != nil {
+				result.ContractViolations = append(result.ContractViolations, bestViolations...)
+			}
 		}
 
 		if len(result.ContractViolations) > 0 {

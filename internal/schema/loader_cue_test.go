@@ -160,9 +160,32 @@ func TestLoadFromCUERegistry_Integration(t *testing.T) {
 
 	ctx := context.Background()
 
-	val, err := loadFromCUERegistry(ctx, "cue.dev/x/githubactions@v0")
+	val, err := loadFromCUERegistry(ctx, "cue.dev/x/githubactions@v0", "")
 	require.NoError(t, err)
 
 	workflow := val.LookupPath(cue.ParsePath("#Workflow"))
 	assert.True(t, workflow.Exists())
+}
+
+func TestSplitModuleAndSubpackage(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantModule string
+		wantSubPkg string
+	}{
+		{"no subpackage", "cue.dev/x/githubactions@v0", "cue.dev/x/githubactions@v0", ""},
+		{"with subpackage", "cue.dev/x/k8s.io@v0/api/apps/v1", "cue.dev/x/k8s.io@v0", "api/apps/v1"},
+		{"deep subpackage", "cue.dev/x/k8s.io@v0/api/core/v1", "cue.dev/x/k8s.io@v0", "api/core/v1"},
+		{"no major version", "cue.dev/x/githubactions", "cue.dev/x/githubactions", ""},
+		{"explicit version no subpackage", "cue.dev/x/githubactions@v0.2.0", "cue.dev/x/githubactions@v0.2.0", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotModule, gotSubPkg := splitModuleAndSubpackage(tt.input)
+			assert.Equal(t, tt.wantModule, gotModule)
+			assert.Equal(t, tt.wantSubPkg, gotSubPkg)
+		})
+	}
 }

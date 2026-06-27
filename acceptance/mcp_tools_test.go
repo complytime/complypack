@@ -48,7 +48,7 @@ version: 0.1.0
 gemara:
   source: ` + catalogPath + `
 schemas:
-  - platform: kubernetes`
+  - platform: kubernetes-pod`
 
 		err = os.WriteFile(configPath, []byte(configContent), 0600)
 		Expect(err).ToNot(HaveOccurred())
@@ -76,7 +76,7 @@ deny contains msg if {
 
 			input := map[string]interface{}{
 				"policyContent": validPolicy,
-				"platform":      "kubernetes",
+				"platform":      "kubernetes-pod",
 			}
 			inputJSON, err := json.Marshal(input)
 			Expect(err).ToNot(HaveOccurred())
@@ -113,7 +113,7 @@ deny contains msg if {
 
 			input := map[string]interface{}{
 				"policyContent": invalidPolicy,
-				"platform":      "kubernetes",
+				"platform":      "kubernetes-pod",
 			}
 			inputJSON, err := json.Marshal(input)
 			Expect(err).ToNot(HaveOccurred())
@@ -154,7 +154,7 @@ deny contains msg if {
 
 			input := map[string]interface{}{
 				"policyContent": policyWithViolation,
-				"platform":      "kubernetes",
+				"platform":      "kubernetes-pod",
 			}
 			inputJSON, err := json.Marshal(input)
 			Expect(err).ToNot(HaveOccurred())
@@ -218,7 +218,7 @@ deny contains msg if {
 			input := map[string]interface{}{
 				"policyContent": policy,
 				"testData":      testData,
-				"platform":      "kubernetes",
+				"platform":      "kubernetes-pod",
 			}
 			inputJSON, err := json.Marshal(input)
 			Expect(err).ToNot(HaveOccurred())
@@ -265,7 +265,7 @@ deny contains msg if {
 			input := map[string]interface{}{
 				"policyContent": policy,
 				"testData":      testData,
-				"platform":      "kubernetes",
+				"platform":      "kubernetes-pod",
 			}
 			inputJSON, err := json.Marshal(input)
 			Expect(err).ToNot(HaveOccurred())

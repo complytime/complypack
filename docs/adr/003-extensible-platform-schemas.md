@@ -1,7 +1,7 @@
 # ADR 003: Extensible Platform Schemas
 
 **Date:** 2026-05-30  
-**Status:** Accepted  
+**Status:** Superseded by [ADR 017](017-schema-index.md)  
 **Deciders:** Jennifer Power
 
 ## Context

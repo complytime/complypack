@@ -36,7 +36,13 @@ func (l *CUELoader) Load(ctx context.Context, source string, platform string) (*
 		modulePath = modulePath[:idx]
 	}
 
-	val, err := loadFromCUERegistry(ctx, modulePath)
+	// Extract subpackage from module path
+	// Format: cue.dev/x/k8s.io@v0/api/apps/v1
+	// Module: cue.dev/x/k8s.io@v0
+	// Subpackage: api/apps/v1
+	modPath, subPkg := splitModuleAndSubpackage(modulePath)
+
+	val, err := loadFromCUERegistry(ctx, modPath, subPkg)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +100,10 @@ func resolveCUEDefinition(val cue.Value, fragment string) (cue.Value, error) {
 	)
 }
 
-func loadFromCUERegistry(ctx context.Context, modulePath string) (cue.Value, error) {
+func loadFromCUERegistry(ctx context.Context, modulePath string, subPkg string) (cue.Value, error) {
 	modPath, version := SplitModuleVersion(modulePath)
 
-	slog.Info("loading schema from CUE registry", "module", modPath, "requestedVersion", version)
+	slog.Info("loading schema from CUE registry", "module", modPath, "subpackage", subPkg, "requestedVersion", version)
 
 	resolver, err := modconfig.NewResolver(nil)
 	if err != nil {
@@ -129,6 +135,9 @@ func loadFromCUERegistry(ctx context.Context, modulePath string) (cue.Value, err
 	}
 
 	importPath := ImportPathForModule(modPath)
+	if subPkg != "" {
+		importPath = importPath + "/" + subPkg
+	}
 
 	instances := load.Instances([]string{importPath}, &load.Config{
 		Dir:      tmpDir,
@@ -138,16 +147,54 @@ func loadFromCUERegistry(ctx context.Context, modulePath string) (cue.Value, err
 		return cue.Value{}, fmt.Errorf("loading module %s: no instances returned", modPath)
 	}
 	if err := instances[0].Err; err != nil {
+		if subPkg != "" {
+			return cue.Value{}, fmt.Errorf("loading module %s@%s/%s: %w", modPath, version, subPkg, err)
+		}
 		return cue.Value{}, fmt.Errorf("loading module %s@%s: %w", modPath, version, err)
 	}
 
 	cueCtx := cuecontext.New()
 	val := cueCtx.BuildInstance(instances[0])
 	if err := val.Err(); err != nil {
+		if subPkg != "" {
+			return cue.Value{}, fmt.Errorf("building schema from %s@%s/%s: %w", modPath, version, subPkg, err)
+		}
 		return cue.Value{}, fmt.Errorf("building schema from %s@%s: %w", modPath, version, err)
 	}
 
 	return val, nil
+}
+
+// splitModuleAndSubpackage separates module path from subpackage path.
+// Input: cue.dev/x/k8s.io@v0/api/apps/v1
+// Returns: (cue.dev/x/k8s.io@v0, api/apps/v1)
+func splitModuleAndSubpackage(input string) (string, string) {
+	// Find the major version marker (@v0, @v1, etc.)
+	idx := strings.LastIndex(input, "@")
+	if idx < 0 {
+		// No version marker, no subpackage
+		return input, ""
+	}
+
+	// Check if there's a path after the version
+	remainder := input[idx+1:]
+	slashIdx := strings.Index(remainder, "/")
+	if slashIdx < 0 {
+		// No subpackage path
+		return input, ""
+	}
+
+	version := remainder[:slashIdx]
+	if !IsMajorOnly(version) {
+		// Not a major-only version, no subpackage
+		return input, ""
+	}
+
+	// Split at the slash after the major version
+	modPath := input[:idx+1+slashIdx]
+	subPkg := remainder[slashIdx+1:]
+
+	return modPath, subPkg
 }
 
 // SplitModuleVersion separates a module path from its version.

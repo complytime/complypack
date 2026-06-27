@@ -1,6 +1,6 @@
 # ADR 010: LookupPath-Based Schema Traversal with Fallback Chain
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 016](016-allows-based-schema-traversal.md)
 
 **Date:** 2026-06-03
 

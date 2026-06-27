@@ -113,12 +113,10 @@ func buildPath(ref ast.Ref) string {
 }
 
 // pathExistsInSchema checks if a dotted path exists in the CUE schema.
-// Uses a fallback chain: top type -> named/optional field -> pattern constraint.
+// Uses a fallback chain: named/optional field -> pattern constraint -> CUE Allows.
 func pathExistsInSchema(path string, schema cue.Value) bool {
-	// Remove "input." prefix to get schema path
 	schemaPath := strings.TrimPrefix(path, "input.")
 	if schemaPath == "input" {
-		// Reference to input itself is always valid
 		return true
 	}
 
@@ -126,23 +124,23 @@ func pathExistsInSchema(path string, schema cue.Value) bool {
 	current := schema
 
 	for _, part := range parts {
-		// Top type (_) accepts any sub-path
-		if current.IncompleteKind() == cue.TopKind {
-			return true
-		}
-
-		// Try named/optional field
 		next := current.LookupPath(cue.MakePath(cue.Str(part).Optional()))
 		if next.Exists() {
 			current = next
 			continue
 		}
 
-		// Try pattern constraint ([string]: T)
 		next = current.LookupPath(cue.MakePath(cue.AnyString))
 		if next.Exists() {
 			current = next
 			continue
+		}
+
+		// Delegate to CUE: handles top type (_), disjunctions, and
+		// other structural allowances. Since we have no value type to
+		// continue walking, accept the entire remaining path.
+		if current.Allows(cue.Str(part)) {
+			return true
 		}
 
 		return false
