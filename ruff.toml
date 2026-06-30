@@ -1,0 +1,22 @@
+line-length = 99
+indent-width = 4
+target-version = "py39"
+
+[lint]
+select = [
+    "B",    # flake8-bugbear
+    #"DTZ",  # flake8-datetime
+    #"E",    # pycodestyle
+    #"F",    # Pyflakes
+    #"I",    # isort
+    #"PLE",  # pylint-error
+    #"SIM",  # flake8-simplify
+    #"T10",  # flake8-debugger
+    #"UP",   # pyupgrade
+    #"W",    # pycodestyle
+    #"YTT",  # flake8-2020
+]
+
+ignore = [
+    "B904",
+]
