@@ -56,7 +56,7 @@ After resolving the version tag, verify the container image actually exists
 at that tag before using it:
 
 ```bash
-docker manifest inspect ghcr.io/complytime/complypack:<VERSION> > /dev/null 2>&1
+podman manifest inspect ghcr.io/complytime/complypack:<VERSION> > /dev/null 2>&1
 ```
 
 If the manifest check fails, the release tag does not have a corresponding
@@ -109,13 +109,13 @@ Write `.mcp.json`:
 {
   "mcpServers": {
     "gemara": {
-      "command": "docker",
+      "command": "podman",
       "args": ["run", "--rm", "-i",
                "ghcr.io/gemaraproj/gemara-mcp:<VERSION>",
                "serve"]
     },
     "complypack": {
-      "command": "docker",
+      "command": "podman",
       "args": ["run", "--rm", "-i",
                "ghcr.io/complytime/complypack:<VERSION>",
                "mcp", "serve",

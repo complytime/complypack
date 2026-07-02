@@ -120,7 +120,9 @@ The MCP server and skills have been tested with:
 
 ### AI Tool Setup
 
-ComplyPack is available as a plugin for Claude Code, Gemini CLI, and OpenCode. See [INSTALL.md](INSTALL.md) for setup instructions.
+ComplyPack is available as a plugin for Claude Code, Gemini CLI, and OpenCode.
+Cursor is also supported via MCP server configuration.
+See [INSTALL.md](INSTALL.md) for setup instructions.
 
 ## Architecture
 

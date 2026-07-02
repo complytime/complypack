@@ -79,6 +79,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/gemaraproj/go-gemara/bundle"
 	"oras.land/oras-go/v2/registry/remote"
@@ -133,8 +134,6 @@ func main() {
 	fmt.Printf("Pushed %s:%s (%s)\n", repoRef, tag, desc.Digest)
 }
 GOEOF
-    # Fix missing import
-    sed -i '7a\\t"path/filepath"' "$PUSH_BUNDLE_DIR/main.go"
     cd "$PUSH_BUNDLE_DIR"
     go mod init push-bundle
     go mod tidy

@@ -6,5 +6,5 @@ compliance pipeline by following the instructions below.
 
 User request: {{args}}
 
-@{skills/pipeline/SKILL.md}
+@{skills/audit-pipeline/SKILL.md}
 """

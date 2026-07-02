@@ -6,5 +6,5 @@ catalogs by following the instructions below.
 
 User request: {{args}}
 
-@{skills/pack/SKILL.md}
+@{skills/pack-assessment/SKILL.md}
 """

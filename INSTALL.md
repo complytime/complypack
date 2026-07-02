@@ -5,7 +5,10 @@ an MCP server for working with Gemara catalogs.
 
 ## Prerequisites
 
-- Docker or Podman (Fedora users: `sudo dnf install podman-docker`)
+- Podman or Docker
+
+> **Note:** All examples below use `podman`. Docker users can substitute
+> `docker` directly — the commands are interchangeable.
 
 ## Claude Code
 
@@ -16,7 +19,7 @@ Add the ComplyTime marketplace and install the plugin:
 /plugin install comply@complytime
 ```
 
-The skills (`/comply:setup`, `/comply:pack`, `/comply:pipeline`) are
+The skills (`/comply:mcp-setup`, `/comply:pack-assessment`, `/comply:audit-pipeline`) are
 auto-discovered once the plugin is installed. To configure the MCP server,
 create a `.mcp.json` in your project:
 
@@ -24,7 +27,7 @@ create a `.mcp.json` in your project:
 {
   "mcpServers": {
     "complypack": {
-      "command": "docker",
+      "command": "podman",
       "args": ["run", "--rm", "-i",
                "ghcr.io/complytime/complypack:main",
                "mcp", "serve",
@@ -67,7 +70,7 @@ a new server with the following configuration:
 {
   "mcpServers": {
     "complypack": {
-      "command": "docker",
+      "command": "podman",
       "args": ["run", "--rm", "-i",
                "ghcr.io/complytime/complypack:main",
                "mcp", "serve",
@@ -117,7 +120,7 @@ To configure the MCP server, create a `.mcp.json` in your project:
 {
   "mcpServers": {
     "complypack": {
-      "command": "docker",
+      "command": "podman",
       "args": ["run", "--rm", "-i",
                "ghcr.io/complytime/complypack:main",
                "mcp", "serve",
