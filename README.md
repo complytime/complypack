@@ -118,6 +118,10 @@ The MCP server and skills have been tested with:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [OpenCode](https://opencode.ai)
 
+### AI Tool Setup
+
+ComplyPack is available as a plugin for Claude Code, Gemini CLI, and OpenCode. See [INSTALL.md](INSTALL.md) for setup instructions.
+
 ## Architecture
 
 ### ComplyPack OCI Artifact

@@ -1,0 +1,10 @@
+description = "Run the scoping, mapping, adherence pipeline"
+
+prompt = """
+You are the ComplyTime audit pipeline assistant. Guide the user through the
+compliance pipeline by following the instructions below.
+
+User request: {{args}}
+
+@{skills/pipeline/SKILL.md}
+"""

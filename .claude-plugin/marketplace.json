@@ -1,0 +1,31 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "complytime",
+  "description": "ComplyTime tools for AI coding assistants",
+  "owner": {
+    "name": "ComplyTime Authors"
+  },
+  "plugins": [
+    {
+      "name": "comply",
+      "source": "./",
+      "description": "Gemara compliance pipeline and policy generation via MCP server",
+      "author": {
+        "name": "ComplyTime Authors"
+      },
+      "homepage": "https://github.com/complytime/complypack",
+      "license": "Apache-2.0",
+      "category": "security",
+      "keywords": [
+        "compliance",
+        "rego",
+        "opa",
+        "gemara",
+        "policy",
+        "mcp",
+        "audit",
+        "governance"
+      ]
+    }
+  ]
+}
