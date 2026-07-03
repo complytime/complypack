@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   push:
-    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@68fa970f535858f703369a6de4baa2237c38fa3c # main
+    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@5684c8275536d5d6f47511c672751b646d18e189 # main
     permissions:
       contents: read
       packages: write
