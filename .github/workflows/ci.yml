@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a2405e6aebff6aabd8e43618539aa35cf90ac92 # v5.2.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5.2.0
         with:
           go-version: ${{ matrix.go-version }}
 
