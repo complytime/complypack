@@ -49,7 +49,7 @@ jobs:
     if: >-
       always()
       && needs.push.result == 'success'
-    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@e30c5cd87e7aeddb8aa7bfeccff4d362bd886270 # main
+    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@5684c8275536d5d6f47511c672751b646d18e189 # main
     permissions:
       contents: read
       packages: write
