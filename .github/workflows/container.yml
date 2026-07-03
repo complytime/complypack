@@ -33,7 +33,7 @@ jobs:
       always()
       && needs.push.result == 'success'
       && needs.push.outputs.image != ''
-    uses: complytime/org-infra/.github/workflows/reusable_trivy_image_scan.yml@e266be092e71ac9343fcd6d5cafc50402161981e # main
+    uses: complytime/org-infra/.github/workflows/reusable_trivy_image_scan.yml@5684c8275536d5d6f47511c672751b646d18e189 # main
     permissions:
       contents: read
       packages: write
