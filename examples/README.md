@@ -43,7 +43,7 @@ Add to `.claude/settings.json` under `mcpServers`:
 }
 ```
 
-Then invoke the pipeline skill: `/comply:pipeline`
+Then invoke the pipeline skill: `/comply:audit-pipeline`
 
 ## Testing with OpenCode
 
@@ -52,9 +52,9 @@ Create symlinks (`.opencode/` is already gitignored):
 
 ```bash
 mkdir -p .opencode/skills
-ln -s ../../skills/pipeline .opencode/skills/pipeline
-ln -s ../../skills/pack .opencode/skills/pack
-ln -s ../../skills/setup .opencode/skills/setup
+ln -s ../../skills/audit-pipeline .opencode/skills/audit-pipeline
+ln -s ../../skills/pack-assessment .opencode/skills/pack-assessment
+ln -s ../../skills/mcp-setup .opencode/skills/mcp-setup
 ```
 
 Add MCP server config to `.mcp.json`:

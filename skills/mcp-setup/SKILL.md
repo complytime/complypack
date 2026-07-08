@@ -173,4 +173,4 @@ Check that each server starts and responds. Report loaded catalogs and schemas.
 
 **Claude Code**: Inform user to use `/comply:audit-pipeline` or `/comply:pack-assessment`.
 
-**OpenCode**: Inform user to use `/comply-audit-pipeline` or `/comply-pack-assessment` (custom commands) or to ask "run the comply pipeline" (skill-based invocation).
+**OpenCode**: Inform user to use `/comply-pipeline` or `/comply-pack` (custom commands) or to ask "run the comply pipeline" (skill-based invocation).

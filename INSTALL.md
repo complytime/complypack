@@ -181,11 +181,11 @@ Or use the setup command to generate it interactively:
 
 ### Available commands
 
-| Command            | Description                                  |
-|--------------------|----------------------------------------------|
-| `/comply-pipeline` | Run the scoping, mapping, adherence pipeline |
-| `/comply-pack`     | Generate Rego policies from the child policy |
-| `/comply-setup`    | Configure the MCP server for this project    |
+| Command            | Description                                          |
+|--------------------|------------------------------------------------------|
+| `/comply-setup`    | Configure complypack MCP server for this project     |
+| `/comply-pack`     | Generate Rego policies from the child policy         |
+| `/comply-pipeline` | Run the comply pipeline (scoping, mapping, adherence)|
 
 ## SELinux (Fedora / RHEL)
 
@@ -243,3 +243,98 @@ These platforms are in the schema index (no explicit source needed):
 
 Custom platforms (e.g., terraform, docker, ansible) can be registered with
 `--schema <name>=<source>` or via `complypack.yaml`.
+
+## Troubleshooting
+
+### MCP client shows "Connection closed" with no details
+
+When `complypack mcp serve` fails during startup, the process exits before
+the MCP handshake completes. Older versions wrote the error only to stderr,
+which most MCP clients discard. Since v0.0.7 the server also writes a
+JSON-RPC error to stdout so clients can surface the real message.
+
+If your client still shows a generic error, check stderr manually:
+
+```bash
+podman run --rm -i ghcr.io/complytime/complypack:main \
+  mcp serve \
+  --source "oci://your-registry/gemara/your-catalog:v1" \
+  --schema ci-github-actions \
+  2>/tmp/complypack-stderr.log; cat /tmp/complypack-stderr.log
+```
+
+### Source file or catalog not found
+
+```
+Error: failed to create MCP server: failed to load artifacts from
+file://./path/to/catalog.yaml: no such file or directory
+```
+
+**Causes:**
+- `file://` sources reference paths **inside the container**, not on the host.
+  Mount the file first with `-v`:
+  ```json
+  "args": ["run", "--rm", "-i",
+           "-v", "./governance:/governance:ro",
+           "ghcr.io/complytime/complypack:main",
+           "mcp", "serve",
+           "--source", "file:///governance/catalog.yaml"]
+  ```
+- OCI sources require network access. Verify the registry is reachable:
+  ```bash
+  podman pull oci://your-registry/gemara/your-catalog:v1
+  ```
+
+### Permission denied on volume mounts
+
+```
+Error: failed to read file: open /config/complypack.yaml: permission denied
+```
+
+On SELinux systems (Fedora, RHEL), add the `:z` suffix to volume mounts:
+
+```bash
+-v "./complypack.yaml:/config/complypack.yaml:ro,z"
+```
+
+See the [SELinux section](#selinux-fedora--rhel) above.
+
+### OCI registry authentication failure
+
+```
+Error: failed to pull catalog: authentication failed
+```
+
+Log in to the registry before starting the server:
+
+```bash
+podman login ghcr.io
+# or
+docker login your-registry.example.com
+```
+
+For GitHub Container Registry, use a personal access token with `read:packages`
+scope.
+
+### Unknown or unsupported schema
+
+```
+Error: failed to load schemas: schema "foobar" not found in index
+```
+
+Check the [Built-in schemas](#built-in-schemas) list above. Schema names are
+case-sensitive. For custom platforms, provide the schema source explicitly:
+
+```bash
+--schema my-platform=/path/to/schema.cue
+```
+
+### Config file errors
+
+```
+Error: failed to load config: complypack.yaml: unmarshal error
+```
+
+Validate your `complypack.yaml` syntax. Required fields depend on your setup —
+at minimum you need sources and at least one schema. See
+[Using a config file](#using-a-config-file-advanced).
