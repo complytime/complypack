@@ -3,6 +3,9 @@
 package cli
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
 	"testing"
 
 	"github.com/complytime/complypack/internal/config"
@@ -276,4 +279,39 @@ func TestParseSchemaFlags(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestWriteStartupError(t *testing.T) {
+	// Capture stdout by replacing os.Stdout with a pipe
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	writeStartupError(errors.New("failed to read file: open ./missing.yaml: no such file or directory"))
+
+	// Restore stdout and read captured output
+	os.Stdout = origStdout
+	require.NoError(t, w.Close())
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	r.Close()
+	output := string(buf[:n])
+
+	// Parse the JSON-RPC response
+	var resp struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      any    `json:"id"`
+		Error   struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(output), &resp), "output should be valid JSON: %s", output)
+
+	assert.Equal(t, "2.0", resp.JSONRPC)
+	assert.Nil(t, resp.ID, "id should be null for pre-handshake errors")
+	assert.Equal(t, -32603, resp.Error.Code, "should use JSON-RPC internal error code")
+	assert.Contains(t, resp.Error.Message, "complypack startup failed")
+	assert.Contains(t, resp.Error.Message, "missing.yaml")
 }

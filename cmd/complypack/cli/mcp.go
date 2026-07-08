@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -78,6 +79,7 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 			if len(sources) > 0 || len(schemas) > 0 {
 				cfg, err := buildConfigFromFlags(sources, schemas)
 				if err != nil {
+					writeStartupError(err)
 					return fmt.Errorf("failed to build config from flags: %w", err)
 				}
 				opts.Config = cfg
@@ -87,6 +89,7 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 
 			server, err := mcp.NewServer(ctx, opts)
 			if err != nil {
+				writeStartupError(err)
 				return fmt.Errorf("failed to create MCP server: %w", err)
 			}
 
@@ -151,6 +154,41 @@ func parseSourceFlags(sources []string) ([]config.GemaraSourceEntry, error) {
 		entries = append(entries, entry)
 	}
 	return entries, nil
+}
+
+// writeStartupError writes a JSON-RPC error response to stdout so MCP clients
+// can surface the real error message to the user. Without this, clients that
+// communicate over stdio only see the pipe close and report a generic
+// "error -32000: Connection closed" with no diagnostic context.
+//
+// Per the JSON-RPC 2.0 spec, when an error occurs before a request id can be
+// determined, the response id MUST be null. This is written as raw JSON to
+// avoid SDK-level restrictions on null-id responses.
+func writeStartupError(err error) {
+	resp := struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      any    `json:"id"`
+		Error   struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}{
+		JSONRPC: "2.0",
+		ID:      nil,
+		Error: struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}{
+			Code:    -32603,
+			Message: fmt.Sprintf("complypack startup failed: %v", err),
+		},
+	}
+	data, encErr := json.Marshal(resp)
+	if encErr != nil {
+		return // best-effort; stderr still has the error
+	}
+	data = append(data, '\n')
+	_, _ = os.Stdout.Write(data)
 }
 
 // parseSchemaFlags converts --schema flag values into SchemaRef values.
