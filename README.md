@@ -16,7 +16,18 @@ ComplyPack is a CLI and Go library for packing and unpacking OCI artifacts conta
 
 ## Installation
 
-### CLI
+### Homebrew
+
+```bash
+brew tap complytime/tap
+brew install complypack
+```
+
+### Binary releases
+
+Download a pre-built binary from [GitHub Releases](https://github.com/complytime/complypack/releases).
+
+### From source
 
 ```bash
 go install github.com/complytime/complypack/cmd/complypack@latest
@@ -156,6 +167,13 @@ The MCP server and skills have been tested with:
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [OpenCode](https://opencode.ai)
+
+### Version
+
+```bash
+complypack version
+complypack version --json
+```
 
 ### AI Tool Setup
 

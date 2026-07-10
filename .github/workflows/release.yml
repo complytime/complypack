@@ -1,46 +1,92 @@
 ---
+# Release Pipeline
+# =================
+# Validates preflight conditions (semver, CI, unreleased commits),
+# creates an annotated tag, then builds release artifacts via GoReleaser
+# with cosign signatures and SBOMs.
+#
+# Trigger: workflow_dispatch with a tag input (e.g., v1.2.3).
+# Container images are published separately by container.yml on tag push.
+# NOTE: If preflight pushes the tag with GITHUB_TOKEN, the tag event will
+# not trigger other workflows. Verify that the reusable preflight uses an
+# app token or PAT for tag creation so container.yml fires.
+#
+# Requires complytime-bot GitHub App credentials (COMPLYTIME_BOT_CLIENT_ID
+# and COMPLYTIME_BOT_PRIVATE_KEY org secrets) for Homebrew tap publishing.
+
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
 
 permissions: {}
 
-jobs:
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
 
+jobs:
+  preflight:
+    name: Preflight
+    uses: complytime/org-infra/.github/workflows/reusable_release_preflight.yml@bc06a92af71291fb9fabbf758c3388b510926ede # main (post-v0.5.0: adds semver image tags)
     permissions:
       contents: write
+      checks: read
+    with:
+      tag: ${{ inputs.tag }}
+
+  release:
+    name: Release
+    needs: preflight
+    if: needs.preflight.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          ref: ${{ needs.preflight.outputs.tag }}
           persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: false
 
-      - name: Run tests
-        run: |
-          go test -race -count=1 ./...
+      - name: Generate Homebrew tap token
+        id: app-token
+        # zizmor: ignore[github-app] -- token is scoped to homebrew-tap only via repositories
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.COMPLYTIME_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.COMPLYTIME_BOT_PRIVATE_KEY }}
+          owner: complytime
+          repositories: homebrew-tap
+          permission-contents: write
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          echo "## Changes" > CHANGELOG.md
-          git log "$(git describe --tags --abbrev=0 HEAD^)"..HEAD --pretty=format:"- %s" >> CHANGELOG.md
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
-      - name: Create Release
-        run: gh release create "${TAG_NAME}" --notes-file CHANGELOG.md --verify-tag
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: ${{ needs.preflight.outputs.tag }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
