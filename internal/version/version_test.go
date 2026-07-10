@@ -4,6 +4,8 @@ package version
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestModuleVersion_ReturnsNonEmpty(t *testing.T) {
@@ -14,10 +16,16 @@ func TestModuleVersion_ReturnsNonEmpty(t *testing.T) {
 }
 
 func TestModuleVersion_FallbackIsDevel(t *testing.T) {
-	// When built with `go test`, debug.ReadBuildInfo returns (devel)
-	// so ModuleVersion should return "(devel)" as the fallback.
 	v := ModuleVersion()
 	if v != "(devel)" {
 		t.Logf("ModuleVersion() = %q (may differ in installed binary)", v)
 	}
+}
+
+func TestGet(t *testing.T) {
+	info := Get()
+	assert.Equal(t, "dev", info.Version)
+	assert.Equal(t, "unknown", info.Commit)
+	assert.Equal(t, "unknown", info.GitTreeState)
+	assert.Equal(t, "unknown", info.BuildDate)
 }
