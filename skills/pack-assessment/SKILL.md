@@ -1,6 +1,6 @@
 ---
 name: pack-assessment
-description: Use when user mentions Rego, Conftest, OPA, "generate policy", or "assessment logic" in the context of Gemara catalogs. Generates Rego policies from Gemara Control Catalogs for Kubernetes (Deployments, Pods, DaemonSets, StatefulSets, CronJobs, Jobs, Services, NetworkPolicies, Ingress, RBAC, ConfigMaps, Secrets), CI/CD pipelines (GitHub Actions, GitLab CI, Azure Pipelines), Conftest, or OPA
+description: Use when user mentions Rego, Conftest, OPA, AMPEL, "generate policy", or "assessment logic" in the context of Gemara catalogs. Generates policies from Gemara Control Catalogs for Kubernetes (Deployments, Pods, DaemonSets, StatefulSets, CronJobs, Jobs, Services, NetworkPolicies, Ingress, RBAC, ConfigMaps, Secrets), CI/CD pipelines (GitHub Actions, GitLab CI, Azure Pipelines), Conftest, OPA, or AMPEL
 ---
 
 # /comply:pack-assessment — Rego Policy Generation and Assessment
@@ -20,7 +20,8 @@ Generate Rego policies from Gemara Control Catalogs that enforce compliance requ
 | 5. Choose format | Select evaluator output convention | Policy structure |
 | 6. Generate policy | Write Rego against schema contract | .rego file |
 | 7. Write to disk | Save to `policy/` | File on disk |
-| 8. Validate | Contract check then test | Pass/fail results |
+| 8. Generate provider mapping | Create provider-specific mapping file | `compliance-mapping.json` (OPA) or `complytime-ampel-policy.json` (Ampel) |
+| 9. Validate | Contract check then test | Pass/fail results |
 
 ## Step 1: Scope — Filter to Automated Requirements
 
@@ -54,7 +55,100 @@ Write policies against the platform schema contract, not sample inputs:
 
 Save to `policy/` directory.
 
-## Step 8: Validate — Contract Check First
+## Step 8: Generate Provider-Specific Mapping File
+
+After writing policy files to disk, generate the mapping file that links assessment plan requirement IDs to their generated policy files. The file format depends on the configured `evaluator-id` in `complypack.yaml`. This file is bundled with the policy files when published as a ComplyPack OCI artifact.
+
+### OPA provider (`evaluator-id: opa`) — `compliance-mapping.json`
+
+Maps Gemara Policy assessment plan requirement IDs to the Rego package namespaces of the generated checks. The opa-provider uses this file at scan time to match incoming assessment configurations to the correct Rego policies.
+
+**Build the mapping from existing rego files.** Before generating, scan the policy output directory (e.g., `policy/`) for `.rego` files and read the `package` declaration from each one. Use these actual package namespaces as the `id` values — do not invent or assume namespaces.
+
+1. List all `.rego` files in the policy directory
+2. For each file, extract the `package` declaration (e.g., `package kubernetes.tls_version`)
+3. Match each package namespace to its corresponding `requirement-id` from the Policy's `adherence.assessment-plans`
+4. Write the mapping file
+
+```json
+{
+  "version": "1",
+  "mappings": [
+    {
+      "id": "kubernetes.tls_version",
+      "requirement_id": "CTL-TLS-001-AR1"
+    },
+    {
+      "id": "kubernetes.tls_ciphers",
+      "requirement_id": "CTL-TLS-001-AR2"
+    }
+  ]
+}
+```
+
+- `id` — the Rego `package` namespace declared in the `.rego` file (e.g., `package kubernetes.tls_version` → `"kubernetes.tls_version"`)
+- `requirement_id` — the Gemara requirement-id from `adherence.assessment-plans[].requirement-id` in the Policy
+- One entry per rego file; no duplicates in either field
+- Write to `compliance-mapping.json` in the policy output directory alongside the `.rego` files
+
+### Ampel provider (`evaluator-id: ampel`) — granular policy files + `complytime-ampel-policy.json`
+
+Generate one JSON file per assessment requirement (granular policy), then merge them into a single `complytime-ampel-policy.json` bundle.
+
+**Granular policy file** (one per requirement, e.g., `require-pull-request.json`):
+
+```json
+{
+  "id": "require-pull-request",
+  "meta": {
+    "description": "Validate branch protection settings require pull/merge requests",
+    "controls": [
+      {
+        "framework": "repo-branch-protection",
+        "class": "source-code",
+        "id": "pull-request-enforcement"
+      }
+    ]
+  },
+  "tenets": [
+    {
+      "id": "01",
+      "code": "<CEL expression>",
+      "predicates": {
+        "types": ["<attestation predicate type URI>"]
+      },
+      "assessment": {
+        "message": "Direct pushes are disabled. Pull/Merge requests required."
+      },
+      "error": {
+        "message": "Direct pushes are enabled so Pull/Merge requests are not required.",
+        "guidance": "Create a branch ruleset and enable 'Restrict updates'."
+      }
+    }
+  ]
+}
+```
+
+**Merged bundle** (`complytime-ampel-policy.json`):
+
+```json
+{
+  "id": "complytime-ampel-policy",
+  "meta": {
+    "frameworks": [
+      { "id": "ComplyTime-AMPEL-Policy", "name": "ComplyTime AMPEL Policy" }
+    ]
+  },
+  "policies": [ /* all granular policies merged here */ ]
+}
+```
+
+- `id` in each granular policy is the policy's semantic identity, matched against the Gemara requirement-id at scan time
+- `tenets[].code` contains CEL expressions evaluated against attestation predicates
+- `tenets[].predicates.types` lists the attestation predicate type URIs the tenet evaluates
+- Write granular files to the policy output directory, then merge into `complytime-ampel-policy.json`
+
+## Step 9: Validate — Contract Check First
 
 1. Run `validate_policy` — confirm zero contract violations against the platform schema
 2. If contract violations: fix the `input.*` paths to match the schema. The schema is the source of truth, not test data.
@@ -82,3 +176,4 @@ Save to `policy/` directory.
 - [ ] Is each `.rego` file scoped to a single assessment requirement?
 - [ ] Did you read control text from MCP, not from general knowledge?
 - [ ] Did you call `get_automation_triage` to determine which plans are automated?
+- [ ] Did you generate the provider-specific mapping file (`compliance-mapping.json` for OPA, `complytime-ampel-policy.json` for Ampel)?
