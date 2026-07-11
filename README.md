@@ -144,10 +144,10 @@ complypack mcp serve --config /path/to/complypack.yaml
 
 #### MCP Resources
 
-| Resource                         | Description                |
-|----------------------------------|----------------------------|
-| `complypack://catalog/<name>`    | Gemara catalog (YAML)      |
-| `complypack://schema/<platform>` | Platform schema (JSON)     |
+| Resource                         | Description                 |
+|----------------------------------|-----------------------------|
+| `complypack://catalog/<name>`    | Gemara catalog (YAML)       |
+| `complypack://schema/<platform>` | Platform schema (JSON)      |
 | `complypack://evaluator`         | Available policy evaluators |
 
 #### MCP Tools
