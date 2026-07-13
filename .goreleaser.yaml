@@ -70,16 +70,43 @@ changelog:
     - title: "Other Work"
       order: 9999
 
-homebrew_casks:
-  - repository:
+brews:
+  - name: complypack
+    repository:
       owner: complytime
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/complytime/complypack"
+    description: "OCI artifact tools for compliance policies and Gemara catalogs"
+    license: "Apache-2.0"
+    install: |
+      bin.install "complypack"
+
+homebrew_casks:
+  - name: complypack
+    repository:
+      owner: complytime
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
     homepage: "https://github.com/complytime/complypack"
     description: "OCI artifact tools for compliance policies and Gemara catalogs"
     license: "Apache-2.0"
     binaries:
       - complypack
+
+nfpms:
+  - id: complypack
+    package_name: complypack
+    vendor: ComplyTime
+    homepage: "https://github.com/complytime/complypack"
+    maintainer: "ComplyTime <complytime@googlegroups.com>"
+    description: "OCI artifact tools for compliance policies and Gemara catalogs"
+    license: Apache-2.0
+    formats:
+      - rpm
+    bindir: /usr/bin
 
 sboms:
   - id: archive

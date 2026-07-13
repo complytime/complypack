@@ -16,11 +16,18 @@ ComplyPack is a CLI and Go library for packing and unpacking OCI artifacts conta
 
 ## Installation
 
-### Homebrew
+### Homebrew (macOS / Linux)
 
 ```bash
-brew tap complytime/tap
-brew install complypack
+brew install complytime/tap/complypack
+```
+
+### Fedora / RPM
+
+Download the `.rpm` from [GitHub Releases](https://github.com/complytime/complypack/releases), then:
+
+```bash
+sudo dnf install ./complypack_*.rpm
 ```
 
 ### Binary releases
