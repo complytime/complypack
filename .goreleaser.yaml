@@ -7,7 +7,6 @@ project_name: complypack
 
 before:
   hooks:
-    - go mod tidy
     - go mod vendor
 
 builds:
@@ -82,19 +81,6 @@ brews:
     license: "Apache-2.0"
     install: |
       bin.install "complypack"
-
-homebrew_casks:
-  - name: complypack
-    repository:
-      owner: complytime
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Casks
-    homepage: "https://github.com/complytime/complypack"
-    description: "OCI artifact tools for compliance policies and Gemara catalogs"
-    license: "Apache-2.0"
-    binaries:
-      - complypack
 
 nfpms:
   - id: complypack
