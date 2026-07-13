@@ -176,4 +176,4 @@ Generate one JSON file per assessment requirement (granular policy), then merge 
 - [ ] Is each `.rego` file scoped to a single assessment requirement?
 - [ ] Did you read control text from MCP, not from general knowledge?
 - [ ] Did you call `get_automation_triage` to determine which plans are automated?
-- [ ] Did you generate the provider-specific mapping file (`compliance-mapping.json` for OPA, `complytime-ampel-policy.json` for Ampel)?
+- [ ] Did you generate the provider-specific mapping file (`complytime-mapping.json` for OPA, `complytime-ampel-policy.json` for Ampel)?
