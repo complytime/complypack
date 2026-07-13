@@ -1,7 +1,7 @@
 {
   "name": "comply",
   "displayName": "ComplyPack",
-  "version": "0.1.0",
+  "version": "0.0.8",
   "description": "Gemara compliance pipeline and policy generation via MCP server",
   "author": {
     "name": "ComplyTime Authors"
