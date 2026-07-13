@@ -99,13 +99,37 @@ container image. Fall back to `:main` and inform the user:
 
 Determine which AI coding tool is running and adapt the output.
 
-First, scan for all recognized tool directories:
+#### 5a: Implicit context (preferred)
+
+The most reliable signal is the tool that is currently executing this skill.
+Users may have multiple AI tools installed, so binary/PATH detection is not
+sufficient — it only proves installation, not active use.
+
+- **OpenCode** — If this skill was loaded via OpenCode's `skill` tool or
+  a `/comply-setup` custom command, the tool is OpenCode. The agent
+  should recognize that it *is* OpenCode and select itself without
+  scanning.
+- **Claude Code** — If the skill was loaded via Claude Code's slash
+  command system (e.g., `/comply:mcp-setup`), the tool is Claude Code.
+- **Cursor** — If the skill was loaded via Cursor's command system, the
+  tool is Cursor.
+
+Since the agent inherently knows which tool it is running inside, this
+detection requires no environment checks. Use it directly and skip all
+further detection steps.
+
+#### 5b: Directory scanning (fallback)
+
+If the agent cannot determine its own runtime identity (e.g., the skill
+instructions were copy-pasted into a generic chat), scan for recognized
+tool directories:
 
 - `.claude-plugin/` → Claude Code
 - `.opencode/` → OpenCode
 - `.cursor-plugin/` → Cursor
 
-**If multiple tool directories are found**: prompt the user to select their active tool before proceeding. Example:
+**If multiple tool directories are found**: prompt the user to select their
+active tool before proceeding. Example:
 
 > Multiple AI coding tools detected in this repository:
 > 1. Claude Code (`.claude-plugin/`)
@@ -116,9 +140,24 @@ First, scan for all recognized tool directories:
 
 **If exactly one is found**: use it automatically.
 
-**If none are found**: fall back to Unknown.
+#### 5c: Interactive prompt (last resort)
 
-Then apply the selected tool's setup steps:
+**If the agent cannot determine its runtime identity and no tool
+directories are found**, prompt the user — never silently default:
+
+> No AI coding tool detected automatically.
+> Which AI coding tool are you using?
+>
+> 1. Claude Code
+> 2. OpenCode
+> 3. Cursor
+
+#### Fallback rule
+
+If any step above fails or produces an ambiguous result, always fall back
+to prompting the user with the supported tool list. Never guess silently.
+
+#### Apply the detected tool's setup steps
 
 - **Claude Code**: Write `.mcp.json` (see Step 7, `.mcp.json` format).
 - **OpenCode**: Write `opencode.json` (see Step 7, `opencode.json` format). Verify that `.opencode/skills/` symlinks exist — if not, create them:
@@ -129,7 +168,6 @@ Then apply the selected tool's setup steps:
   ln -sf ../../skills/mcp-setup .opencode/skills/mcp-setup
   ```
 - **Cursor**: Write `.mcp.json` (see Step 7, `.mcp.json` format).
-- **Unknown**: Write `.mcp.json` and inform the user about skill discovery.
 
 ### Step 7: Write Configuration
 
