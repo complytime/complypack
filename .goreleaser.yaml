@@ -69,18 +69,23 @@ changelog:
     - title: "Other Work"
       order: 9999
 
-brews:
+homebrew_casks:
   - name: complypack
     repository:
       owner: complytime
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
     homepage: "https://github.com/complytime/complypack"
     description: "OCI artifact tools for compliance policies and Gemara catalogs"
     license: "Apache-2.0"
-    install: |
-      bin.install "complypack"
+    binaries:
+      - complypack
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/complypack"]
+          end
 
 nfpms:
   - id: complypack
