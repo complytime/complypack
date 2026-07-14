@@ -111,3 +111,35 @@ func TestLoadArtifacts_OCISourceRequiresRegistry(t *testing.T) {
 		assert.NotContains(t, err.Error(), "failed to read file")
 	})
 }
+
+func TestLoadBundleArtifacts_InMemoryFallback(t *testing.T) {
+	ctx := context.Background()
+
+	// When cacheDir is empty, loadBundleArtifacts should use memory.New()
+	// instead of an on-disk OCI store. We verify this by passing an empty
+	// cacheDir and confirming the error is a registry/network error (meaning
+	// the code got past the store selection without erroring on cache setup).
+
+	t.Run("empty cacheDir uses in-memory store", func(t *testing.T) {
+		_, err := loadBundleArtifacts(ctx, "localhost:9999/nonexistent:v1", false, "")
+		require.Error(t, err)
+		// The error should be about the registry pull failing, NOT about
+		// failing to open a cache store. This proves memory.New() was used.
+		assert.NotContains(t, err.Error(), "failed to open cache store")
+		assert.Contains(t, err.Error(), "failed to pull from registry")
+	})
+
+	t.Run("non-empty cacheDir uses on-disk store", func(t *testing.T) {
+		cacheDir := t.TempDir()
+		_, err := loadBundleArtifacts(ctx, "localhost:9999/nonexistent:v1", false, cacheDir)
+		require.Error(t, err)
+		// Same registry error expected -- the store was created successfully
+		// but the pull fails because there's no registry.
+		assert.NotContains(t, err.Error(), "failed to open cache store")
+		assert.Contains(t, err.Error(), "failed to pull from registry")
+
+		// Verify the OCI store was actually created on disk
+		_, statErr := os.Stat(filepath.Join(cacheDir, "index.json"))
+		assert.NoError(t, statErr, "OCI layout index.json should exist in cache dir")
+	})
+}
