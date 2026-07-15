@@ -2,13 +2,17 @@
 
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/complytime/complypack/internal/version"
+	"github.com/spf13/cobra"
+)
 
 // New creates the root complypack CLI command.
 func New() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "complypack",
 		Short:         "OCI artifact tools for compliance policies and Gemara catalogs",
+		Version:       version.ModuleVersion(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -17,6 +21,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(packCmd())
 	cmd.AddCommand(pullCmd())
 	cmd.AddCommand(cacheCmd())
+	cmd.AddCommand(initCmd())
 
 	return cmd
 }

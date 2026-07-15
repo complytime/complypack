@@ -282,17 +282,19 @@ func TestParseSchemaFlags(t *testing.T) {
 }
 
 func TestWriteStartupError(t *testing.T) {
-	// Capture stdout by replacing os.Stdout with a pipe
+	// writeStartupError writes to os.Stdout, so we capture via pipe.
+	// This test must not run in parallel with tests that read os.Stdout.
 	origStdout := os.Stdout
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = origStdout })
 
 	writeStartupError(errors.New("failed to read file: open ./missing.yaml: no such file or directory"))
 
-	// Restore stdout and read captured output
-	os.Stdout = origStdout
 	require.NoError(t, w.Close())
+	os.Stdout = origStdout
+
 	buf := make([]byte, 4096)
 	n, _ := r.Read(buf)
 	r.Close()

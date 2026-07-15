@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/config"
@@ -13,6 +14,7 @@ import (
 	"github.com/complytime/complypack/internal/requirement"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/complytime/complypack/internal/source"
+	"github.com/complytime/complypack/internal/version"
 	"github.com/complytime/complypack/schemas"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -64,7 +66,7 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		cfg = opts.Config
 	} else {
 		var err error
-		cfg, err = config.LoadConfig(opts.ConfigPath)
+		cfg, err = config.LoadConfig(opts.ConfigPath, false, os.Stderr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load config: %w", err)
 		}
@@ -136,7 +138,7 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 	// Create MCP server
 	impl := &mcp.Implementation{
 		Name:    "complypack-mcp",
-		Version: "0.1.0",
+		Version: version.ModuleVersion(),
 	}
 
 	mcpServer := mcp.NewServer(impl, &mcp.ServerOptions{

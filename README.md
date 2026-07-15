@@ -56,6 +56,8 @@ schemas:
   - platform: ci-github-actions
 ```
 
+Configuration files are validated against a [JSON Schema](schemas/jsonschema/complypack.schema.json). The `pack` command uses strict validation — unknown fields cause an error. The `mcp serve` command uses lenient validation — unknown fields produce a warning on stderr but do not prevent startup. Run `complypack init --strict` to verify your config has no unrecognized fields.
+
 See `complypack.example.yaml` for full configuration options.
 
 ### Authentication
@@ -67,6 +69,44 @@ docker login ghcr.io
 ```
 
 ## CLI Usage
+
+### Initialize configuration
+
+Generate a `complypack.yaml` configuration file:
+
+```bash
+# Interactive — prompts for platforms and sources
+complypack init
+
+# From flags — no prompts
+complypack init \
+  --schema kubernetes-deployment \
+  --schema ci-github-actions \
+  --source oci://ghcr.io/org/catalog:latest \
+  --evaluator-id opa \
+  --id io.complytime.my-pack \
+  --version 0.1.0 \
+  --strict
+```
+
+Interactive mode requires a terminal. It prompts for pack identity (ID,
+version, evaluator), platform schemas via a filterable multi-select, and
+a Gemara source URI. If the output file already exists, a confirmation
+prompt appears. If the output path's parent directory does not exist, a
+confirmation prompt offers to create it. For non-interactive use (CI,
+scripts), provide `--schema` and `--source` flags.
+
+**Flags:**
+- `--schema`        Platform schema to include (repeatable)
+- `--source`        Gemara source to include (repeatable)
+- `--id`            Pack identifier in reverse-domain notation
+- `--evaluator-id`  Policy evaluator plugin ID (default: `opa`)
+- `--version`       Pack version in semver format (default: `0.1.0`)
+- `--force`         Overwrite existing config file without prompting
+- `--output`, `-o`  Output file path (default: `complypack.yaml`). If the path is a directory (trailing `/` or existing directory), the default filename is appended
+- `--parents`, `-p` Create parent directories for the output path if they do not exist
+- `--strict`              Treat unknown config fields as errors
+- `--allow-credentials`  Allow source URIs with embedded credentials (not recommended)
 
 ### Pack
 
@@ -122,6 +162,26 @@ The MCP server and skills have been tested with:
 ComplyPack is available as a plugin for Claude Code, Gemini CLI, and OpenCode.
 Cursor is also supported via MCP server configuration.
 See [INSTALL.md](INSTALL.md) for setup instructions.
+
+### Shell Completion
+
+Generate shell completion scripts for tab-completion of commands and flags:
+
+```bash
+# Bash
+complypack completion bash > /etc/bash_completion.d/complypack
+
+# Zsh
+complypack completion zsh > "${fpath[1]}/_complypack"
+
+# Fish
+complypack completion fish > ~/.config/fish/completions/complypack.fish
+
+# PowerShell
+complypack completion powershell > complypack.ps1
+```
+
+Run `complypack completion --help` for detailed instructions per shell.
 
 ## Architecture
 
@@ -201,6 +261,7 @@ Verification is handled on the consumer side by [complyctl](https://github.com/c
 
 - **Content Size**: Maximum 100MB per artifact
 - **Single Content Layer**: Only one content layer per artifact is supported
+- **Windows Symlinks**: The `schemas/json-schema/` directory contains a symlink for editor discoverability. Windows users cloning the repo need `git config core.symlinks true` (see [ADR-018](docs/adr/018-schema-file-layout.md))
 
 ## Related Projects
 

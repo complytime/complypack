@@ -12,8 +12,10 @@ import (
 	"github.com/complytime/complypack/internal/cache"
 	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/mcp"
+	"github.com/complytime/complypack/schemas/jsonschema"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // mcpCmd creates the "mcp" command.
@@ -119,10 +121,18 @@ func buildConfigFromFlags(sources, schemas []string) (*config.ComplyPackConfig, 
 		return nil, err
 	}
 
-	return &config.ComplyPackConfig{
-		Gemara:  config.GemaraConfig{Sources: entries},
-		Schemas: schemaRefs,
-	}, nil
+	cfg := config.BuildConfig("", "", "", entries, schemaRefs)
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling config: %w", err)
+	}
+
+	if _, err := jsonschema.ValidateConfig(data, false); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
+	}
+
+	return cfg, nil
 }
 
 // parseSourceFlags converts --source flag values into GemaraSourceEntry values.

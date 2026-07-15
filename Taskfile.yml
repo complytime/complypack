@@ -1,17 +1,35 @@
 version: '3'
 
+includes:
+  deps:
+    taskfile: .taskfiles/deps.yml
+  dev:
+    taskfile: .taskfiles/dev.yml
+
+vars:
+  APP_NAME: '{{.APP_NAME | default "complypack"}}'
+  TEST_DIR: '{{.TEST_DIR | default ".test-output"}}'
+
+
 tasks:
-  generate-schemas:
-    desc: Generate JSON Schema from CUE sources
-    dir: schemas
+  default:
+    silent: true
+    cmd: task --list 2>/dev/null
+
+  build:
+    desc: "Alias for dev:build"
     cmds:
-      - mkdir -p json-schema
-      - for: [kubernetes, terraform, docker, ansible, ci]
-        cmd: cue export cue/{{.ITEM}}.cue --out openapi --outfile json-schema/{{.ITEM}}.json
-    sources:
-      - cue/*.cue
-    generates:
-      - json-schema/*.json
+      - task: dev:build
+
+  test:
+    desc: "Alias for dev:test"
+    cmds:
+      - task: dev:test
+
+  lint:
+    desc: "Alias for dev:lint"
+    cmds:
+      - task: dev:lint
 
   sync-module:
     desc: Copy skills and commands into module/ for lola distribution
@@ -40,6 +58,15 @@ tasks:
       - diff .opencode/commands/comply-pipeline.md module/commands/comply-pipeline.md
       - diff .opencode/commands/comply-pack.md module/commands/comply-pack.md
 
-  default:
+  fmt:
+    desc: "Alias for dev:fmt"
     cmds:
-      - task: generate-schemas
+      - task: dev:fmt
+
+  check:
+    desc: Run all quality gates
+    deps: [lint, test]
+
+  clean:
+    desc: Remove build artifacts and test output
+    cmd: rm -rf bin/ dist/ {{.TEST_DIR}}

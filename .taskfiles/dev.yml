@@ -1,0 +1,72 @@
+version: '3'
+
+vars:
+  BINARY: '{{.BINARY | default "complypack"}}'
+  BUILD_DIR: '{{.BUILD_DIR | default "bin"}}'
+  TEST_DIR: '{{.TEST_DIR | default (printf "%s/.test-output" .ROOT_DIR)}}'
+  COVER_PROFILE: '{{.TEST_DIR}}/coverage.out'
+  LDFLAGS: '{{.LDFLAGS | default "-s -w"}}'
+  MODE: '{{.MODE | default "human"}}'
+
+tasks:
+  default:
+    silent: true
+    cmd: task dev --list 2>/dev/null
+
+  build:
+    desc: Compile the complypack binary
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - CGO_ENABLED=0 go build -trimpath -ldflags={{.LDFLAGS | shellQuote}} -o {{.BUILD_DIR}}/{{.BINARY}} ./cmd/complypack
+    sources:
+      - '{{.ROOT_DIR}}/**/*.go'
+      - '{{.ROOT_DIR}}/go.mod'
+      - '{{.ROOT_DIR}}/go.sum'
+    generates:
+      - '{{.BUILD_DIR}}/{{.BINARY}}'
+
+  test:
+    desc: Run all tests with race detector (MODE=llm for errors-only output)
+    cmds:
+      - mkdir -p {{.TEST_DIR}}
+      - >-
+        go test -race -count=1 -coverprofile={{.COVER_PROFILE}} ./...
+        {{if eq .MODE "llm"}}-json 2>&1 | grep -E '"Action":"(fail|error)"' || true{{end}}
+
+  test-unit:
+    desc: Run unit tests only, skip acceptance (MODE=llm for errors-only output)
+    cmds:
+      - mkdir -p {{.TEST_DIR}}
+      - >-
+        go test -race -count=1 -coverprofile={{.COVER_PROFILE}}
+        $(go list ./... | grep -v /acceptance)
+        {{if eq .MODE "llm"}}-json 2>&1 | grep -E '"Action":"(fail|error)"' || true{{end}}
+
+  test-acceptance:
+    desc: Run acceptance tests (Ginkgo)
+    cmd: go tool ginkgo -v -race {{.ROOT_DIR}}/acceptance/
+
+  lint:
+    desc: Run golangci-lint
+    preconditions:
+      - sh: command -v golangci-lint
+        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.2.2"
+    cmd: golangci-lint run ./...
+
+  fmt:
+    desc: Format Go source files
+    preconditions:
+      - sh: command -v golangci-lint
+        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.2.2"
+    cmd: golangci-lint fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmd: go vet ./...
+
+  cover:
+    desc: Generate HTML coverage report
+    deps: [test]
+    cmds:
+      - go tool cover -html={{.COVER_PROFILE}} -o {{.TEST_DIR}}/coverage.html
+      - echo "Coverage report at {{.TEST_DIR}}/coverage.html"

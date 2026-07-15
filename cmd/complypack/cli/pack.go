@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"os"
 
 	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/config"
@@ -60,7 +61,7 @@ Examples:
 			ref := args[1]
 
 			// Load config
-			cfg, err := config.LoadConfig(configPath)
+			cfg, err := config.LoadConfig(configPath, true, os.Stderr)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}

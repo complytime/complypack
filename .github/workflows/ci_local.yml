@@ -42,9 +42,7 @@ jobs:
         run: go test -race -count=1 ./...
 
       - name: Run acceptance tests
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.29.0
-          ginkgo -v acceptance/
+        run: go tool ginkgo -v acceptance/
 
       - name: Coverage
         if: matrix.go-version == '1.26'

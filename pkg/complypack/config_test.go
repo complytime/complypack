@@ -95,6 +95,78 @@ func TestConfigValidation(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid id format - single segment",
+			cfg: complypack.Config{
+				ID:          "notsegmented",
+				EvaluatorID: "opa",
+				Version:     "1.0.0",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid id format - uppercase",
+			cfg: complypack.Config{
+				ID:          "IO.Test.Pack",
+				EvaluatorID: "opa",
+				Version:     "1.0.0",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid evaluator-id format - spaces",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "my bad evaluator",
+				Version:     "1.0.0",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid evaluator-id format - uppercase",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "OPA",
+				Version:     "1.0.0",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid version format - not semver",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "opa",
+				Version:     "latest",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid version format - coerced integer string",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "opa",
+				Version:     "1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid evaluator-id with dots",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "io.custom.eval",
+				Version:     "1.0.0",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid version with prerelease",
+			cfg: complypack.Config{
+				ID:          "io.test.pack",
+				EvaluatorID: "opa",
+				Version:     "1.0.0-rc.1",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

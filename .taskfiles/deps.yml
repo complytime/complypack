@@ -1,0 +1,25 @@
+version: '3'
+
+tasks:
+  default:
+    silent: true
+    cmd: task deps --list 2>/dev/null
+
+  update:
+    desc: Update all dependencies, tidy, and verify
+    cmds:
+      - go get -u -t ./...
+      - task: tidy
+      - task: verify
+
+  tidy:
+    desc: Remove unused dependencies
+    cmd: go mod tidy
+
+  verify:
+    desc: Verify dependency checksums
+    cmd: go mod verify
+
+  download:
+    desc: Download dependencies to local cache
+    cmd: go mod download

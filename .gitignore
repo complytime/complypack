@@ -12,6 +12,7 @@ dist/
 *.test
 *.out
 coverage.out
+.test-output/
 
 # Go workspace
 go.work

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/complytime/complypack/internal/cache"
@@ -45,7 +46,7 @@ Examples:
 				return fmt.Errorf("failed to resolve cache directory: %w", err)
 			}
 
-			cfg, err := config.LoadConfig(configPath)
+			cfg, err := config.LoadConfig(configPath, true, os.Stderr)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
