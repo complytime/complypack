@@ -304,9 +304,8 @@ and schemas.
 (custom commands) or to ask "run the comply pipeline" (skill-based
 invocation).
 
-## MCP Servers
+## MCP Server
 
 | Server         | Purpose                              | Provides                                                                                                                                                                                                                   |
 | -------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **gemara**     | Authoring and validation             | `gemara://lexicon`, `gemara://schema/definitions`, `validate_gemara_artifact`                                                                                                                                              |
 | **complypack** | Artifact serving, policy validation  | `complypack://catalog/*`, `complypack://mapping/*`, `complypack://schema/*`, `validate_policy`, `test_policy`, `get_assessment_requirements`, `get_applicability_groups`, `get_automation_triage`, `analyze_parameter_delta` |
