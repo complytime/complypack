@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
 	github.com/open-policy-agent/opa v1.18.2
-	github.com/open-policy-agent/regal v0.41.1
+	github.com/open-policy-agent/regal v0.42.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -87,7 +87,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.34 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.35 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
