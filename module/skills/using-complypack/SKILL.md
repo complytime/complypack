@@ -13,7 +13,7 @@ description: Use when starting any compliance task — establishes skill orderin
 
 | Skill | Type | When |
 |-------|------|------|
-| `comply:mcp-setup` | Process | Before any other skill — configures MCP server for the project |
+| `comply:setup` | Process | Before any other skill — configures complypack for the project |
 | `comply:build-assessment` | Domain | Generating Rego policies from Gemara catalogs (`single` or `batch` mode) |
 | `comply:audit-pipeline` | Domain | Building Gemara Policy artifacts (scoping, mapping, adherence) |
 
@@ -26,7 +26,7 @@ description: Use when starting any compliance task — establishes skill orderin
 
 ## Skill Priority
 
-- "Set up for compliance work" → `comply:mcp-setup` first (required once per project)
+- "Set up for compliance work" → `comply:setup` first (required once per project)
 - "Generate a Rego policy" → `comply:build-assessment` (handles test-then-policy internally)
 - "Run the comply pipeline" → `comply:audit-pipeline` directly (MCP must already be configured)
 

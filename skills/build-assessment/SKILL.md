@@ -19,7 +19,7 @@ Parse the mode from the skill argument:
 
 ## Prerequisite
 
-MCP must be configured (`comply:mcp-setup`). If `.mcp.json` does not exist or the complypack MCP server is unreachable, stop and invoke `comply:mcp-setup` first.
+MCP must be configured (`comply:setup`). If `complypack.yaml` does not exist or the complypack MCP server is unreachable, stop and invoke `comply:setup` first.
 
 ## Step 1: Scope — Get the Requirement List
 
