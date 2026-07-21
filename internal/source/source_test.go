@@ -17,13 +17,18 @@ func TestIsOCIReference(t *testing.T) {
 		source string
 		want   bool
 	}{
-		// Positive cases: OCI references
+		// Positive cases: OCI references with tags
 		{"ghcr.io/org/catalog:v1", true},
 		{"localhost:5000/repo:tag", true},
 		{"ghcr.io/org/repo:latest", true},
 		{"registry.example.com/org/repo:v1.0.0", true},
-		{"http://registry/repo", true},
+		{"http://registry.io/repo", true},
 		{"https://registry.io/image", true},
+
+		// Positive cases: tagless OCI references (issue #136)
+		{"ghcr.io/org/catalog", true},
+		{"registry.example.com/org/repo", true},
+		{"localhost/repo", true},
 
 		// Negative cases: not OCI references
 		{"catalog.yaml", false},
@@ -31,6 +36,11 @@ func TestIsOCIReference(t *testing.T) {
 		{"relative/path.yaml", false},
 		{"", false},
 		{"single-word", false},
+
+		// Edge cases: file paths with dots that should NOT match
+		{"v1.2/config.yaml", false},
+		{"./local/path", false},
+		{"mydir/file", false},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +118,14 @@ func TestLoadArtifacts_OCISourceRequiresRegistry(t *testing.T) {
 	t.Run("bare OCI reference routes to bundle loader", func(t *testing.T) {
 		_, err := LoadArtifacts(ctx, "ghcr.io/nonexistent/repo:v1", false, "")
 		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "failed to read file")
+	})
+
+	t.Run("tagless OCI reference routes to bundle loader", func(t *testing.T) {
+		_, err := LoadArtifacts(ctx, "ghcr.io/nonexistent/catalog", false, "")
+		require.Error(t, err)
+		// Should NOT contain "failed to read file" -- that would mean it was
+		// routed to the file loader instead of the bundle loader (issue #136).
 		assert.NotContains(t, err.Error(), "failed to read file")
 	})
 }
