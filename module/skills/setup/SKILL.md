@@ -9,6 +9,21 @@ Set up complypack for this project. The primary outputs are a validated
 `complypack.yaml` and a warm artifact cache. MCP server configuration is
 an optional final step.
 
+## Path Anchoring
+
+All paths in this skill are relative to the **project root** — the
+directory containing `complypack.yaml` (or where it will be created).
+
+- **Project root**: the current working directory when the skill is
+  invoked. Do NOT search parent directories or the broader filesystem.
+- **Config file**: `complypack.yaml` (project root)
+- **MCP config**: `.mcp.json` or `opencode.json` (project root)
+- **Cache directory**: `$XDG_CACHE_HOME/complypack` or
+  `$HOME/.cache/complypack` (system default, do not override)
+
+Do NOT search outside the project root for any files. If a path cannot
+be resolved within the project root, report an error and stop.
+
 ## Process
 
 ### Step 1: Check Existing Configuration
@@ -119,9 +134,12 @@ Example output:
 > - Evaluator: `opa`
 > - Cache: warm
 
-### Step 5: Configure MCP (Optional)
+### Step 5: Configure MCP
 
-Ask if the user wants MCP integration:
+Always ask the user whether they want MCP integration. Do not skip this
+step or assume the answer.
+
+Ask the user:
 
 > Would you like to configure an MCP server for your AI coding tool?
 > 1. Yes — local binary
@@ -154,12 +172,19 @@ runtime identity, scan for tool directories:
 
 If multiple are found, prompt the user to select their active tool.
 
-**Interactive prompt (last resort):** If no tool is detected, prompt:
+**Error (last resort):** If no tool is detected through implicit context
+or directory scanning, stop with an error:
 
-> Which AI coding tool are you using?
-> 1. Claude Code
-> 2. OpenCode
-> 3. Cursor
+> Could not detect your AI coding tool. Checked:
+> - Implicit runtime context (not available)
+> - `.opencode/` directory (not found)
+> - `.claude-plugin/` directory (not found)
+> - `.cursor-plugin/` directory (not found)
+>
+> Specify your tool manually and re-run `/comply-setup`.
+
+Do not guess the tool identity. Writing config to the wrong location is
+worse than stopping.
 
 #### 5b: Local Binary MCP Configuration
 
@@ -234,7 +259,8 @@ Look up the latest release. Do NOT use `:latest` tags.
 gh api repos/complytime/complypack/releases --jq '.[0].tag_name'
 ```
 
-If no release exists, fall back to `:main`.
+If no release exists, ask the user for a tag or offer `:main` as an
+option (see below).
 
 Verify the container image tag exists:
 
@@ -242,15 +268,27 @@ Verify the container image tag exists:
 <RUNTIME> manifest inspect ghcr.io/complytime/complypack:<VERSION> > /dev/null 2>&1
 ```
 
-If the manifest check fails, fall back to `:main` and inform the user:
+If the manifest check fails, ask the user:
 
-> No container image found for tag `<VERSION>`. Using `:main` instead.
+> No container image found for tag `<VERSION>`. What would you like to do?
+> 1. Use `:main` (tracks the main branch — may be unstable)
+> 2. Enter a different tag
+> 3. Switch to local binary instead (Step 5b)
+
+Do not fall back to `:main` automatically — the user must confirm.
 
 **Write configuration:**
 
 The container needs the `complypack.yaml` mounted in and the source/schema
 values passed via `--source` and `--schema` flags (read from the generated
 `complypack.yaml`).
+
+> **IMPORTANT — Volume mounts for `file://` sources:** When any source
+> uses `file://`, the container command MUST include
+> `-v <host-path>:/workspace -w /workspace` to mount the host directory.
+> Without this, the server cannot access the file. On SELinux systems
+> (Fedora, RHEL), add `:z` to the volume mount. Check the generated
+> `complypack.yaml` for `file://` sources before writing the config.
 
 **Claude Code / Cursor — `.mcp.json`:**
 
@@ -286,11 +324,6 @@ values passed via `--source` and `--schema` flags (read from the generated
   }
 }
 ```
-
-> **Volume mounts for `file://` sources:** When any source uses `file://`,
-> the container command must include `-v <host-path>:/workspace -w /workspace`
-> to mount the host directory. Without this, the server cannot access the
-> file. On SELinux systems (Fedora, RHEL), add `:z` to the volume mount.
 
 ### Step 6: Verify MCP (if configured)
 
