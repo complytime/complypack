@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: complypack
+
+before:
+  hooks:
+    - go mod vendor
+
+builds:
+  - id: complypack
+    binary: complypack
+    main: ./cmd/complypack/
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - "-X github.com/complytime/complypack/internal/version.version={{ .Version }}"
+      - "-X github.com/complytime/complypack/internal/version.gitTreeState={{ .GitTreeState }}"
+      - "-X github.com/complytime/complypack/internal/version.commit={{ .Commit }}"
+      - "-X github.com/complytime/complypack/internal/version.buildDate={{ .Date }}"
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+changelog:
+  sort: asc
+  use: github
+  format: "{{ .SHA }}: {{ .Message }} ({{ with .AuthorUsername }}@{{ . }}{{ else }}{{ .AuthorName }}{{ end }})"
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - Merge pull request
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 100
+    - title: "Security Updates"
+      regexp: '^.*?sec(\(.+\))??!?:.+$'
+      order: 150
+    - title: "Bug Fixes"
+      regexp: '^.*?(fix|refactor)(\(.+\))??!?:.+$'
+      order: 200
+    - title: "Dependency Updates"
+      regexp: '^.*chore\(deps\):.*$'
+      order: 250
+    - title: "Infrastructure Updates"
+      regexp: '^.*ci(\(.*\))?:.*$'
+      order: 300
+    - title: "Documentation Updates"
+      regexp: '^.*?docs?(\(.+\))??!?:.+$'
+      order: 400
+    - title: "Other Work"
+      order: 9999
+
+nfpms:
+  - id: complypack
+    package_name: complypack
+    vendor: ComplyTime
+    homepage: "https://github.com/complytime/complypack"
+    maintainer: "ComplyTime <complytime@googlegroups.com>"
+    description: "OCI artifact tools for compliance policies and Gemara catalogs"
+    license: Apache-2.0
+    formats:
+      - rpm
+    bindir: /usr/bin
+
+sboms:
+  - id: archive
+    artifacts: archive
+  - id: source
+    artifacts: source
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true

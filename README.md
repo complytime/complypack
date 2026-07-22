@@ -16,7 +16,25 @@ ComplyPack is a CLI and Go library for packing and unpacking OCI artifacts conta
 
 ## Installation
 
-### CLI
+### Homebrew (macOS / Linux)
+
+```bash
+brew install complytime/tap/complypack
+```
+
+### Fedora / RPM
+
+Download the `.rpm` from [GitHub Releases](https://github.com/complytime/complypack/releases), then:
+
+```bash
+sudo dnf install ./complypack_*.rpm
+```
+
+### Binary releases
+
+Download a pre-built binary from [GitHub Releases](https://github.com/complytime/complypack/releases).
+
+### From source
 
 ```bash
 go install github.com/complytime/complypack/cmd/complypack@latest
@@ -133,10 +151,10 @@ complypack mcp serve --config /path/to/complypack.yaml
 
 #### MCP Resources
 
-| Resource                         | Description                |
-|----------------------------------|----------------------------|
-| `complypack://catalog/<name>`    | Gemara catalog (YAML)      |
-| `complypack://schema/<platform>` | Platform schema (JSON)     |
+| Resource                         | Description                 |
+|----------------------------------|-----------------------------|
+| `complypack://catalog/<name>`    | Gemara catalog (YAML)       |
+| `complypack://schema/<platform>` | Platform schema (JSON)      |
 | `complypack://evaluator`         | Available policy evaluators |
 
 #### MCP Tools
@@ -156,6 +174,13 @@ The MCP server and skills have been tested with:
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [OpenCode](https://opencode.ai)
+
+### Version
+
+```bash
+complypack version
+complypack version --json
+```
 
 ### AI Tool Setup
 
