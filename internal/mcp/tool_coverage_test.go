@@ -75,7 +75,7 @@ func TestHandleGetCoverageReport(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "complytime-mapping.json"), mappingData, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "complytime-mapping.json"), mappingData, 0o600))
 
 	evalRegistry := evaluator.DefaultRegistry()
 

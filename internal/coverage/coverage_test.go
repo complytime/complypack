@@ -26,9 +26,9 @@ type stubEvaluator struct {
 	testErr       error
 }
 
-func (s *stubEvaluator) ID() string                  { return s.id }
-func (s *stubEvaluator) FileExtension() string        { return s.fileExtension }
-func (s *stubEvaluator) RequiredFiles() []string       { return s.requiredFiles }
+func (s *stubEvaluator) ID() string                          { return s.id }
+func (s *stubEvaluator) FileExtension() string               { return s.fileExtension }
+func (s *stubEvaluator) RequiredFiles() []string             { return s.requiredFiles }
 func (s *stubEvaluator) Validate(_ string, _ string) []error { return nil }
 
 func (s *stubEvaluator) CheckContract(_ string, _ string, _ cue.Value) ([]evaluator.ContractViolation, error) {
@@ -116,14 +116,14 @@ func writeMappingFile(t *testing.T, dir string, entries []MappingEntry) {
 	}
 	data, err := json.Marshal(mf)
 	require.NoError(t, err, "marshaling mapping file")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "complytime-mapping.json"), data, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "complytime-mapping.json"), data, 0o600))
 }
 
 // writeRegoFile creates a stub .rego file in the given directory.
 func writeRegoFile(t *testing.T, dir, name string) {
 	t.Helper()
 	content := "package " + name + "\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".rego"), []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".rego"), []byte(content), 0o600))
 }
 
 func TestRun_FullCoverage(t *testing.T) {

@@ -87,8 +87,8 @@ type Warning struct {
 
 // MappingFile represents the complytime-mapping.json structure.
 type MappingFile struct {
-	Version  string           `json:"version"`
-	Mappings []MappingEntry   `json:"mappings"`
+	Version  string         `json:"version"`
+	Mappings []MappingEntry `json:"mappings"`
 }
 
 // MappingEntry maps a Rego package namespace to an assessment requirement ID.
