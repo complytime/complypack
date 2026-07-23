@@ -13,6 +13,8 @@ import (
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/requirement"
 	"github.com/gemaraproj/go-gemara"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubEvaluator implements evaluator.Evaluator for testing.
@@ -97,6 +99,14 @@ type testControl struct {
 	requirementIDs []string
 }
 
+func newOPAEval() *stubEvaluator {
+	return &stubEvaluator{
+		id:            "opa",
+		fileExtension: ".rego",
+		requiredFiles: []string{"complytime-mapping.json"},
+	}
+}
+
 // writeMappingFile creates a complytime-mapping.json in the given directory.
 func writeMappingFile(t *testing.T, dir string, entries []MappingEntry) {
 	t.Helper()
@@ -105,21 +115,15 @@ func writeMappingFile(t *testing.T, dir string, entries []MappingEntry) {
 		Mappings: entries,
 	}
 	data, err := json.Marshal(mf)
-	if err != nil {
-		t.Fatalf("marshaling mapping file: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "complytime-mapping.json"), data, 0o644); err != nil {
-		t.Fatalf("writing mapping file: %v", err)
-	}
+	require.NoError(t, err, "marshaling mapping file")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "complytime-mapping.json"), data, 0o644))
 }
 
 // writeRegoFile creates a stub .rego file in the given directory.
 func writeRegoFile(t *testing.T, dir, name string) {
 	t.Helper()
 	content := "package " + name + "\n"
-	if err := os.WriteFile(filepath.Join(dir, name+".rego"), []byte(content), 0o644); err != nil {
-		t.Fatalf("writing rego file: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".rego"), []byte(content), 0o644))
 }
 
 func TestRun_FullCoverage(t *testing.T) {
@@ -137,44 +141,23 @@ func TestRun_FullCoverage(t *testing.T) {
 		{ID: "ctl_002_ar1", RequirementID: "CTL-002-AR1"},
 	})
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
-
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if report.PolicyID != "test-policy" {
-		t.Errorf("PolicyID = %q, want %q", report.PolicyID, "test-policy")
-	}
-	if report.Metrics.TotalAutomated != 3 {
-		t.Errorf("TotalAutomated = %d, want 3", report.Metrics.TotalAutomated)
-	}
-	if report.Metrics.Implemented != 3 {
-		t.Errorf("Implemented = %d, want 3", report.Metrics.Implemented)
-	}
-	if report.Metrics.Gaps != 0 {
-		t.Errorf("Gaps = %d, want 0", report.Metrics.Gaps)
-	}
-	if report.Metrics.CoveragePercent != 100 {
-		t.Errorf("CoveragePercent = %f, want 100", report.Metrics.CoveragePercent)
-	}
-	if len(report.Warnings) != 0 {
-		t.Errorf("Warnings = %d, want 0", len(report.Warnings))
-	}
+	assert.Equal(t, "test-policy", report.PolicyID)
+	assert.Equal(t, 3, report.Metrics.TotalAutomated)
+	assert.Equal(t, 3, report.Metrics.Implemented)
+	assert.Equal(t, 0, report.Metrics.Gaps)
+	assert.Equal(t, 100.0, report.Metrics.CoveragePercent)
+	assert.Empty(t, report.Warnings)
 
 	for _, entry := range report.Requirements {
-		if entry.Status != StatusImplemented {
-			t.Errorf("requirement %s status = %q, want %q", entry.RequirementID, entry.Status, StatusImplemented)
-		}
+		assert.Equal(t, StatusImplemented, entry.Status,
+			"requirement %s should be implemented", entry.RequirementID)
 	}
 }
 
@@ -193,44 +176,25 @@ func TestRun_PartialCoverage(t *testing.T) {
 		{ID: "ctl_002_ar1", RequirementID: "CTL-002-AR1"},
 	})
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
-
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if report.Metrics.TotalAutomated != 5 {
-		t.Errorf("TotalAutomated = %d, want 5", report.Metrics.TotalAutomated)
-	}
-	if report.Metrics.Implemented != 3 {
-		t.Errorf("Implemented = %d, want 3", report.Metrics.Implemented)
-	}
-	if report.Metrics.Gaps != 2 {
-		t.Errorf("Gaps = %d, want 2", report.Metrics.Gaps)
-	}
-	if report.Metrics.CoveragePercent != 60 {
-		t.Errorf("CoveragePercent = %f, want 60", report.Metrics.CoveragePercent)
-	}
+	assert.Equal(t, 5, report.Metrics.TotalAutomated)
+	assert.Equal(t, 3, report.Metrics.Implemented)
+	assert.Equal(t, 2, report.Metrics.Gaps)
+	assert.Equal(t, 60.0, report.Metrics.CoveragePercent)
 
-	// Check that gap entries have the correct status
 	gapCount := 0
 	for _, entry := range report.Requirements {
 		if entry.Status == StatusGap {
 			gapCount++
 		}
 	}
-	if gapCount != 2 {
-		t.Errorf("gap count = %d, want 2", gapCount)
-	}
+	assert.Equal(t, 2, gapCount, "should have 2 gap entries")
 }
 
 func TestRun_ZeroCoverage(t *testing.T) {
@@ -242,33 +206,18 @@ func TestRun_ZeroCoverage(t *testing.T) {
 	}
 	rp := buildTestPolicy("test-policy", controls, gemara.ModeAutomated)
 
-	// Empty mapping file - no policies implemented
 	writeMappingFile(t, dir, []MappingEntry{})
-
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
 
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if report.Metrics.Implemented != 0 {
-		t.Errorf("Implemented = %d, want 0", report.Metrics.Implemented)
-	}
-	if report.Metrics.Gaps != 4 {
-		t.Errorf("Gaps = %d, want 4", report.Metrics.Gaps)
-	}
-	if report.Metrics.CoveragePercent != 0 {
-		t.Errorf("CoveragePercent = %f, want 0", report.Metrics.CoveragePercent)
-	}
+	assert.Equal(t, 0, report.Metrics.Implemented)
+	assert.Equal(t, 4, report.Metrics.Gaps)
+	assert.Equal(t, 0.0, report.Metrics.CoveragePercent)
 }
 
 func TestRun_NoMappingFile_Fallback(t *testing.T) {
@@ -279,32 +228,20 @@ func TestRun_NoMappingFile_Fallback(t *testing.T) {
 	}
 	rp := buildTestPolicy("test-policy", controls, gemara.ModeAutomated)
 
-	// Write rego files but no mapping file
 	writeRegoFile(t, dir, "policy1")
 	writeRegoFile(t, dir, "policy2")
-
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
 
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	// All requirements should be gaps since we can't determine mapping
-	if report.Metrics.Gaps != 1 {
-		t.Errorf("Gaps = %d, want 1", report.Metrics.Gaps)
-	}
-	if len(report.Warnings) == 0 {
-		t.Error("expected warnings about fallback scanning, got none")
-	}
+	assert.Equal(t, 1, report.Metrics.Gaps, "all requirements should be gaps in fallback")
+	require.NotEmpty(t, report.Warnings, "should include fallback warnings")
+	assert.Contains(t, report.Warnings[0].Message, "mapping file not found")
+	assert.Contains(t, report.Warnings[1].Message, "reduced detection precision")
 }
 
 func TestRun_MappingEntryNoMatchingRequirement(t *testing.T) {
@@ -315,37 +252,21 @@ func TestRun_MappingEntryNoMatchingRequirement(t *testing.T) {
 	}
 	rp := buildTestPolicy("test-policy", controls, gemara.ModeAutomated)
 
-	// Mapping file has an extra entry not in the policy
 	writeMappingFile(t, dir, []MappingEntry{
 		{ID: "ctl_001_ar1", RequirementID: "CTL-001-AR1"},
 		{ID: "ctl_extra", RequirementID: "CTL-EXTRA-001-AR1"},
 	})
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
-
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	// Only the matching requirement should be counted
-	if report.Metrics.TotalAutomated != 1 {
-		t.Errorf("TotalAutomated = %d, want 1", report.Metrics.TotalAutomated)
-	}
-	if report.Metrics.Implemented != 1 {
-		t.Errorf("Implemented = %d, want 1", report.Metrics.Implemented)
-	}
-	if report.Metrics.Gaps != 0 {
-		t.Errorf("Gaps = %d, want 0", report.Metrics.Gaps)
-	}
+	assert.Equal(t, 1, report.Metrics.TotalAutomated)
+	assert.Equal(t, 1, report.Metrics.Implemented)
+	assert.Equal(t, 0, report.Metrics.Gaps)
 }
 
 func TestRun_AllManualRequirements(t *testing.T) {
@@ -359,33 +280,17 @@ func TestRun_AllManualRequirements(t *testing.T) {
 
 	writeMappingFile(t, dir, []MappingEntry{})
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
-
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if report.Metrics.TotalAutomated != 0 {
-		t.Errorf("TotalAutomated = %d, want 0", report.Metrics.TotalAutomated)
-	}
-	if report.Metrics.CoveragePercent != 0 {
-		t.Errorf("CoveragePercent = %f, want 0", report.Metrics.CoveragePercent)
-	}
-	if len(report.Manual) != 3 {
-		t.Errorf("Manual count = %d, want 3", len(report.Manual))
-	}
-	if len(report.Requirements) != 0 {
-		t.Errorf("Requirements count = %d, want 0 (all manual)", len(report.Requirements))
-	}
+	assert.Equal(t, 0, report.Metrics.TotalAutomated)
+	assert.Equal(t, 0.0, report.Metrics.CoveragePercent)
+	assert.Len(t, report.Manual, 3)
+	assert.Empty(t, report.Requirements, "all manual — no automated requirements")
 }
 
 func TestRun_TestEnrichment_Passing(t *testing.T) {
@@ -401,15 +306,9 @@ func TestRun_TestEnrichment_Passing(t *testing.T) {
 	})
 	writeRegoFile(t, dir, "ctl_001_ar1")
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-		testResults: &evaluator.TestResults{
-			Total:  1,
-			Passed: 1,
-			Failed: 0,
-		},
+	eval := newOPAEval()
+	eval.testResults = &evaluator.TestResults{
+		Total: 1, Passed: 1, Failed: 0,
 	}
 
 	report, err := Run(context.Background(), Options{
@@ -418,19 +317,11 @@ func TestRun_TestEnrichment_Passing(t *testing.T) {
 		Evaluator:      eval,
 		RunTests:       true,
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(report.Requirements) != 1 {
-		t.Fatalf("Requirements count = %d, want 1", len(report.Requirements))
-	}
-	if report.Requirements[0].Status != StatusImplementedPassing {
-		t.Errorf("status = %q, want %q", report.Requirements[0].Status, StatusImplementedPassing)
-	}
-	if report.Metrics.Passing != 1 {
-		t.Errorf("Passing = %d, want 1", report.Metrics.Passing)
-	}
+	require.Len(t, report.Requirements, 1)
+	assert.Equal(t, StatusImplementedPassing, report.Requirements[0].Status)
+	assert.Equal(t, 1, report.Metrics.Passing)
 }
 
 func TestRun_TestEnrichment_Failing(t *testing.T) {
@@ -446,16 +337,10 @@ func TestRun_TestEnrichment_Failing(t *testing.T) {
 	})
 	writeRegoFile(t, dir, "ctl_001_ar1")
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-		testResults: &evaluator.TestResults{
-			Total:  1,
-			Passed: 0,
-			Failed: 1,
-			Errors: []string{"test_ctl_001_ar1 failed"},
-		},
+	eval := newOPAEval()
+	eval.testResults = &evaluator.TestResults{
+		Total: 1, Passed: 0, Failed: 1,
+		Errors: []string{"test_ctl_001_ar1 failed"},
 	}
 
 	report, err := Run(context.Background(), Options{
@@ -464,22 +349,12 @@ func TestRun_TestEnrichment_Failing(t *testing.T) {
 		Evaluator:      eval,
 		RunTests:       true,
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(report.Requirements) != 1 {
-		t.Fatalf("Requirements count = %d, want 1", len(report.Requirements))
-	}
-	if report.Requirements[0].Status != StatusImplementedFailing {
-		t.Errorf("status = %q, want %q", report.Requirements[0].Status, StatusImplementedFailing)
-	}
-	if report.Metrics.Failing != 1 {
-		t.Errorf("Failing = %d, want 1", report.Metrics.Failing)
-	}
-	if len(report.Requirements[0].TestErrors) != 1 {
-		t.Errorf("TestErrors count = %d, want 1", len(report.Requirements[0].TestErrors))
-	}
+	require.Len(t, report.Requirements, 1)
+	assert.Equal(t, StatusImplementedFailing, report.Requirements[0].Status)
+	assert.Equal(t, 1, report.Metrics.Failing)
+	assert.Len(t, report.Requirements[0].TestErrors, 1)
 }
 
 func TestRun_TestEnrichment_Disabled(t *testing.T) {
@@ -494,95 +369,96 @@ func TestRun_TestEnrichment_Disabled(t *testing.T) {
 		{ID: "ctl_001_ar1", RequirementID: "CTL-001-AR1"},
 	})
 
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
-
 	report, err := Run(context.Background(), Options{
 		ResolvedPolicy: rp,
 		PolicyDir:      dir,
-		Evaluator:      eval,
+		Evaluator:      newOPAEval(),
 		RunTests:       false,
 	})
-	if err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if report.Requirements[0].Status != StatusImplemented {
-		t.Errorf("status = %q, want %q (no test enrichment)", report.Requirements[0].Status, StatusImplemented)
-	}
-	if report.Metrics.Passing != 0 {
-		t.Errorf("Passing = %d, want 0", report.Metrics.Passing)
-	}
-	if report.Metrics.Failing != 0 {
-		t.Errorf("Failing = %d, want 0", report.Metrics.Failing)
-	}
+	assert.Equal(t, StatusImplemented, report.Requirements[0].Status,
+		"should not have pass/fail enrichment when tests disabled")
+	assert.Equal(t, 0, report.Metrics.Passing)
+	assert.Equal(t, 0, report.Metrics.Failing)
 }
 
 func TestRun_MissingRequiredInputs(t *testing.T) {
-	eval := &stubEvaluator{
-		id:            "opa",
-		fileExtension: ".rego",
-		requiredFiles: []string{"complytime-mapping.json"},
-	}
+	eval := newOPAEval()
+	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name string
-		opts Options
+		name        string
+		opts        Options
+		errContains string
 	}{
 		{
-			name: "nil resolved policy",
-			opts: Options{PolicyDir: "/tmp", Evaluator: eval},
+			name:        "nil resolved policy",
+			opts:        Options{PolicyDir: tmpDir, Evaluator: eval},
+			errContains: "resolved policy is required",
 		},
 		{
-			name: "empty policy dir",
-			opts: Options{ResolvedPolicy: &requirement.ResolvedPolicy{}, Evaluator: eval},
+			name:        "empty policy dir",
+			opts:        Options{ResolvedPolicy: &requirement.ResolvedPolicy{}, Evaluator: eval},
+			errContains: "policy directory is required",
 		},
 		{
-			name: "nil evaluator",
-			opts: Options{ResolvedPolicy: &requirement.ResolvedPolicy{}, PolicyDir: "/tmp"},
+			name:        "nil evaluator",
+			opts:        Options{ResolvedPolicy: &requirement.ResolvedPolicy{}, PolicyDir: tmpDir},
+			errContains: "evaluator is required",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Run(context.Background(), tc.opts)
-			if err == nil {
-				t.Error("expected error for missing input, got nil")
-			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errContains)
 		})
 	}
 }
 
+func TestRun_NonexistentPolicyDir(t *testing.T) {
+	eval := newOPAEval()
+	rp := buildTestPolicy("test-policy", []testControl{
+		{controlID: "CTL-001", requirementIDs: []string{"CTL-001-AR1"}},
+	}, gemara.ModeAutomated)
+
+	_, err := Run(context.Background(), Options{
+		ResolvedPolicy: rp,
+		PolicyDir:      filepath.Join(t.TempDir(), "nonexistent"),
+		Evaluator:      eval,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "policy directory")
+}
+
 func TestComputeMetrics(t *testing.T) {
-	entries := []RequirementEntry{
-		{RequirementID: "R1", Status: StatusImplementedPassing},
-		{RequirementID: "R2", Status: StatusImplementedFailing},
-		{RequirementID: "R3", Status: StatusImplemented},
-		{RequirementID: "R4", Status: StatusGap},
-		{RequirementID: "R5", Status: StatusGap},
-	}
+	t.Run("mixed statuses", func(t *testing.T) {
+		entries := []RequirementEntry{
+			{RequirementID: "R1", Status: StatusImplementedPassing},
+			{RequirementID: "R2", Status: StatusImplementedFailing},
+			{RequirementID: "R3", Status: StatusImplemented},
+			{RequirementID: "R4", Status: StatusGap},
+			{RequirementID: "R5", Status: StatusGap},
+		}
 
-	m := computeMetrics(entries)
+		m := computeMetrics(entries)
 
-	if m.TotalAutomated != 5 {
-		t.Errorf("TotalAutomated = %d, want 5", m.TotalAutomated)
-	}
-	if m.Implemented != 3 {
-		t.Errorf("Implemented = %d, want 3", m.Implemented)
-	}
-	if m.Gaps != 2 {
-		t.Errorf("Gaps = %d, want 2", m.Gaps)
-	}
-	if m.Passing != 1 {
-		t.Errorf("Passing = %d, want 1", m.Passing)
-	}
-	if m.Failing != 1 {
-		t.Errorf("Failing = %d, want 1", m.Failing)
-	}
-	if m.CoveragePercent != 60 {
-		t.Errorf("CoveragePercent = %f, want 60", m.CoveragePercent)
-	}
+		assert.Equal(t, 5, m.TotalAutomated)
+		assert.Equal(t, 3, m.Implemented)
+		assert.Equal(t, 2, m.Gaps)
+		assert.Equal(t, 1, m.Passing)
+		assert.Equal(t, 1, m.Failing)
+		assert.Equal(t, 60.0, m.CoveragePercent)
+	})
+
+	t.Run("empty entries", func(t *testing.T) {
+		m := computeMetrics([]RequirementEntry{})
+
+		assert.Equal(t, 0, m.TotalAutomated)
+		assert.Equal(t, 0, m.Implemented)
+		assert.Equal(t, 0, m.Gaps)
+		assert.Equal(t, 0.0, m.CoveragePercent, "should be 0 not NaN for empty entries")
+	})
 }

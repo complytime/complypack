@@ -8,6 +8,7 @@ package coverage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,6 +174,15 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		return nil, fmt.Errorf("evaluator is required")
 	}
 
+	// Validate policy directory exists and is a directory
+	info, err := os.Stat(opts.PolicyDir)
+	if err != nil {
+		return nil, fmt.Errorf("policy directory %q: %w", opts.PolicyDir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("policy directory %q is not a directory", opts.PolicyDir)
+	}
+
 	// Triage to partition automated vs manual requirements
 	triage := requirement.TriageAssessmentPlans(opts.ResolvedPolicy)
 
@@ -271,23 +281,11 @@ func enrichWithTestResults(ctx context.Context, report *Report, opts Options) er
 		return fmt.Errorf("scanning for test files: %w", err)
 	}
 
-	// Also include test files (e.g., *_test.rego)
-	testPattern := filepath.Join(opts.PolicyDir, "*_test"+ext)
-	testMatches, err := filepath.Glob(testPattern)
-	if err != nil {
-		return fmt.Errorf("scanning for test files: %w", err)
-	}
-
-	// Merge, dedup
-	allFiles := make(map[string]bool)
-	for _, m := range matches {
-		allFiles[m] = true
-	}
-	for _, m := range testMatches {
-		allFiles[m] = true
-	}
-
-	for path := range allFiles {
+	// Note: *.rego already matches *_test.rego, so a single glob covers both
+	for _, path := range matches {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("reading policy file %s: %w", path, err)
@@ -295,14 +293,18 @@ func enrichWithTestResults(ctx context.Context, report *Report, opts Options) er
 		files[filepath.Base(path)] = string(data)
 	}
 
-	// Also read the mapping file if present
+	// Also read the mapping file if present (skip if not found, fail on other errors)
 	requiredFiles := opts.Evaluator.RequiredFiles()
 	for _, rf := range requiredFiles {
 		rfPath := filepath.Join(opts.PolicyDir, rf)
 		data, err := os.ReadFile(rfPath)
-		if err == nil {
-			files[rf] = string(data)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("reading required file %s: %w", rf, err)
+			}
+			continue
 		}
+		files[rf] = string(data)
 	}
 
 	if len(files) == 0 {

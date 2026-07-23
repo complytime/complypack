@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/complytime/complypack/internal/coverage"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -54,6 +55,9 @@ func handleGetCoverageReport(store *ResourceStore) mcp.ToolHandler {
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return nil, fmt.Errorf("invalid input: %w", err)
 		}
+
+		// Sanitize filesystem path from external input
+		input.PolicyDir = filepath.Clean(input.PolicyDir)
 
 		// Look up resolved policy
 		rp, found := store.resolved[input.Policy]
