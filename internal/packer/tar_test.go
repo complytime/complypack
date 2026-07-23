@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,19 +46,37 @@ func TestTarGzipDir(t *testing.T) {
 		assert.NotContains(t, files, ".git/config")
 	})
 
-	t.Run("excludes test rego files", func(t *testing.T) {
+	t.Run("excludes files matching predicate", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package main"), 0600))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy_test.rego"), []byte("package main"), 0600))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "complytime-mapping.json"), []byte("{}"), 0600))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "check_test.rego"), []byte("package sub"), 0600))
+
+		exclude := func(relPath string) bool {
+			return strings.HasSuffix(relPath, "_test.rego")
+		}
+
+		reader, err := TarGzipDir(dir, WithExclude(exclude))
+		require.NoError(t, err)
+
+		files := extractTarGz(t, reader)
+		assert.Contains(t, files, "policy.rego")
+		assert.NotContains(t, files, "policy_test.rego")
+		assert.NotContains(t, files, "sub/check_test.rego")
+	})
+
+	t.Run("includes all files without exclude option", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package main"), 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy_test.rego"), []byte("package main"), 0600))
 
 		reader, err := TarGzipDir(dir)
 		require.NoError(t, err)
 
 		files := extractTarGz(t, reader)
 		assert.Contains(t, files, "policy.rego")
-		assert.Contains(t, files, "complytime-mapping.json")
-		assert.NotContains(t, files, "policy_test.rego")
+		assert.Contains(t, files, "policy_test.rego", "without exclude, test files should be included")
 	})
 
 	t.Run("errors on non-directory", func(t *testing.T) {

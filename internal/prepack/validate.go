@@ -54,7 +54,7 @@ func (r *ValidationResult) Valid() bool {
 // Validate runs the pre-pack validation pipeline against a content directory.
 // Four stages execute in order, each fail-fast:
 //  0. Required files -- verify evaluator-specific companion files exist
-//  1. Syntax check -- parse all policy files
+//  1. Syntax check -- parse non-test policy files individually
 //  2. Contract check -- verify input.* references against CUE schema
 //  3. Test execution -- run policy unit tests
 //
@@ -63,7 +63,9 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 	result := &ValidationResult{}
 
 	ext := eval.FileExtension()
-	policyFiles, err := collectFiles(contentDir, ext)
+	// matchedFiles includes both policy and test files; test files are
+	// filtered downstream in each stage that requires it.
+	matchedFiles, err := collectFiles(contentDir, ext)
 	if err != nil {
 		return nil, fmt.Errorf("collecting policy files: %w", err)
 	}
@@ -82,17 +84,19 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 		return result, nil
 	}
 
-	if len(policyFiles) == 0 {
+	if len(matchedFiles) == 0 {
 		slog.Warn("no policy files found", "dir", contentDir, "extension", ext)
 		return result, nil
 	}
 
-	result.FilesChecked = len(policyFiles)
-	slog.Info("validating policies", "files", len(policyFiles), "evaluator", eval.ID())
-
-	// Stage 1: Syntax check
-	fileSources := make(map[string]string, len(policyFiles))
-	for _, path := range policyFiles {
+	// Stage 1: Syntax check — read all files but only syntax-check
+	// non-test files.  Test files reference rules from companion
+	// policy files and cannot be compiled in isolation (single-module
+	// compilation would produce rego_unsafe_var_error).  They are
+	// validated jointly in Stage 3 (test execution) instead.
+	var policyCount int
+	fileSources := make(map[string]string, len(matchedFiles))
+	for _, path := range matchedFiles {
 		data, readErr := os.ReadFile(path) //nolint:gosec // G304 -- path from controlled WalkDir
 		if readErr != nil {
 			return nil, fmt.Errorf("reading %s: %w", path, readErr)
@@ -101,6 +105,11 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 
 		relPath, _ := filepath.Rel(contentDir, path)
 		fileSources[relPath] = src
+
+		if IsTestFile(relPath, ext) {
+			continue
+		}
+		policyCount++
 
 		syntaxErrs := eval.Validate(relPath, src)
 		for _, e := range syntaxErrs {
@@ -111,6 +120,9 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 		}
 	}
 
+	result.FilesChecked = policyCount
+	slog.Info("validating policies", "files", result.FilesChecked, "evaluator", eval.ID())
+
 	if len(result.SyntaxErrors) > 0 {
 		return result, nil
 	}
@@ -120,7 +132,7 @@ func Validate(ctx context.Context, contentDir string, eval evaluator.Evaluator, 
 		slog.Warn("no CUE schemas provided, skipping contract validation")
 	} else {
 		for relPath, src := range fileSources {
-			if isTestFile(relPath, ext) {
+			if IsTestFile(relPath, ext) {
 				continue
 			}
 			var bestViolations []evaluator.ContractViolation
@@ -198,8 +210,8 @@ func collectFiles(dir string, ext string) ([]string, error) {
 	return files, err
 }
 
-// isTestFile returns true if the filename follows the *_test.<ext> convention.
-func isTestFile(name string, ext string) bool {
+// IsTestFile returns true if the filename follows the *_test.<ext> convention.
+func IsTestFile(name string, ext string) bool {
 	return strings.HasSuffix(name, "_test"+ext)
 }
 
@@ -207,7 +219,7 @@ func isTestFile(name string, ext string) bool {
 func filterTestFiles(files map[string]string, ext string) map[string]string {
 	result := make(map[string]string)
 	for name, src := range files {
-		if isTestFile(name, ext) {
+		if IsTestFile(name, ext) {
 			result[name] = src
 		}
 	}

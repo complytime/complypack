@@ -14,10 +14,30 @@ import (
 	"strings"
 )
 
+// TarOption configures the behaviour of TarGzipDir.
+type TarOption func(*tarOptions)
+
+type tarOptions struct {
+	exclude func(relPath string) bool
+}
+
+// WithExclude sets a predicate that is called with the slash-separated
+// relative path of each non-directory entry.  When the predicate
+// returns true the file is omitted from the archive.
+func WithExclude(fn func(relPath string) bool) TarOption {
+	return func(o *tarOptions) {
+		o.exclude = fn
+	}
+}
+
 // TarGzipDir creates a tar.gz archive of the given directory.
 // Hidden files (starting with '.') are excluded.
 // Returns a reader over the compressed archive.
-func TarGzipDir(dir string) (io.Reader, error) {
+func TarGzipDir(dir string, opts ...TarOption) (io.Reader, error) {
+	var cfg tarOptions
+	for _, o := range opts {
+		o(&cfg)
+	}
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("stat %s: %w", dir, err)
@@ -43,11 +63,6 @@ func TarGzipDir(dir string) (io.Reader, error) {
 			return nil
 		}
 
-		// Skip OPA test files — convention is *_test.rego
-		if !d.IsDir() && strings.HasSuffix(d.Name(), "_test.rego") {
-			return nil
-		}
-
 		info, err := d.Info()
 		if err != nil {
 			return err
@@ -64,7 +79,14 @@ func TarGzipDir(dir string) (io.Reader, error) {
 		if err != nil {
 			return err
 		}
-		header.Name = filepath.ToSlash(relPath)
+		slashPath := filepath.ToSlash(relPath)
+
+		// Apply caller-provided exclusion predicate
+		if cfg.exclude != nil && !d.IsDir() && cfg.exclude(slashPath) {
+			return nil
+		}
+
+		header.Name = slashPath
 
 		if err := tw.WriteHeader(header); err != nil {
 			return fmt.Errorf("writing tar header for %s: %w", path, err)
