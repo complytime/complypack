@@ -74,12 +74,21 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 		}
 		requirements := extractFromResolvedPolicy(rp, input.ControlID, input.Scope)
 
+		// Build control-level summaries
+		controlIDs := rp.ControlIDs()
+		if input.ControlID != "" {
+			controlIDs = []string{input.ControlID}
+		}
+		summary, controls := rp.ControlSummaries(controlIDs, input.Scope)
+
 		// Build response
 		responseData, err := json.Marshal(map[string]interface{}{
 			"catalog":      input.CatalogName,
 			"control_id":   input.ControlID,
 			"scope":        input.Scope,
 			"count":        len(requirements),
+			"summary":      summary,
+			"controls":     controls,
 			"requirements": requirements,
 		})
 		if err != nil {
@@ -140,7 +149,7 @@ func extractFromResolvedPolicy(rp *requirement.ResolvedPolicy, filterControlID s
 
 	for _, controlID := range controlIDs {
 		for _, req := range rp.RequirementsForControl(controlID) {
-			if len(filterScope) > 0 && !applicabilityIntersects(req.Applicability, filterScope) {
+			if len(filterScope) > 0 && !requirement.ApplicabilityIntersects(req.Applicability, filterScope) {
 				continue
 			}
 			info := AssessmentRequirementInfo{
@@ -167,17 +176,6 @@ func extractFromResolvedPolicy(rp *requirement.ResolvedPolicy, filterControlID s
 	}
 
 	return results
-}
-
-func applicabilityIntersects(applicability, scope []string) bool {
-	for _, a := range applicability {
-		for _, s := range scope {
-			if a == s {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // GetAssessmentRequirementsHandler returns the handler (for testing).

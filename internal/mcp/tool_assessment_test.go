@@ -19,7 +19,8 @@ func testResolvedPolicy() *requirement.ResolvedPolicy {
 		Metadata: gemara.Metadata{Id: "test-catalog"},
 		Controls: []gemara.Control{
 			{
-				Id: "TEST-001",
+				Id:    "TEST-001",
+				Title: "Test Control One",
 				AssessmentRequirements: []gemara.AssessmentRequirement{
 					{
 						Id:            "TEST-001-AR1",
@@ -34,7 +35,8 @@ func testResolvedPolicy() *requirement.ResolvedPolicy {
 				},
 			},
 			{
-				Id: "TEST-002",
+				Id:    "TEST-002",
+				Title: "Test Control Two",
 				AssessmentRequirements: []gemara.AssessmentRequirement{
 					{
 						Id:            "TEST-002-AR1",
@@ -365,5 +367,144 @@ func TestExtractFromResolvedPolicy(t *testing.T) {
 	t.Run("nil scope returns all", func(t *testing.T) {
 		results := extractFromResolvedPolicy(rp, "", nil)
 		assert.Len(t, results, 3)
+	})
+}
+
+func TestHandleGetAssessmentRequirements_Summary(t *testing.T) {
+	store := &ResourceStore{
+		artifacts: map[string]any{},
+		resolved: map[string]*requirement.ResolvedPolicy{
+			"test-policy": testResolvedPolicy(),
+		},
+		schemas: map[string][]byte{},
+	}
+
+	handler := handleGetAssessmentRequirements(store)
+
+	t.Run("unfiltered response includes summary and controls", func(t *testing.T) {
+		input := map[string]interface{}{
+			"catalogName": "test-policy",
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Arguments: json.RawMessage(inputJSON),
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		textContent := result.Content[0].(*mcp.TextContent)
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		// Verify summary
+		summary, ok := response["summary"].(map[string]interface{})
+		require.True(t, ok, "response must contain summary object")
+		assert.Equal(t, float64(2), summary["total_controls"])
+		assert.Equal(t, float64(3), summary["total_requirements"])
+
+		// Verify controls array
+		controls, ok := response["controls"].([]interface{})
+		require.True(t, ok, "response must contain controls array")
+		assert.Len(t, controls, 2)
+
+		controlMap := make(map[string]map[string]interface{})
+		for _, c := range controls {
+			cm := c.(map[string]interface{})
+			controlMap[cm["id"].(string)] = cm
+		}
+
+		assert.Equal(t, "Test Control One", controlMap["TEST-001"]["title"])
+		assert.Equal(t, float64(2), controlMap["TEST-001"]["requirement_count"])
+		assert.Equal(t, "Test Control Two", controlMap["TEST-002"]["title"])
+		assert.Equal(t, float64(1), controlMap["TEST-002"]["requirement_count"])
+
+		// Verify existing fields unchanged
+		assert.Equal(t, "test-policy", response["catalog"])
+		assert.Equal(t, float64(3), response["count"])
+		assert.NotNil(t, response["requirements"])
+	})
+
+	t.Run("filtered by controlId includes single-control summary", func(t *testing.T) {
+		input := map[string]interface{}{
+			"catalogName": "test-policy",
+			"controlId":   "TEST-001",
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Arguments: json.RawMessage(inputJSON),
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		textContent := result.Content[0].(*mcp.TextContent)
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		summary := response["summary"].(map[string]interface{})
+		assert.Equal(t, float64(1), summary["total_controls"])
+		assert.Equal(t, float64(2), summary["total_requirements"])
+
+		controls := response["controls"].([]interface{})
+		assert.Len(t, controls, 1)
+
+		ctrl := controls[0].(map[string]interface{})
+		assert.Equal(t, "TEST-001", ctrl["id"])
+		assert.Equal(t, "Test Control One", ctrl["title"])
+		assert.Equal(t, float64(2), ctrl["requirement_count"])
+
+		// Verify existing fields still present
+		assert.Equal(t, "TEST-001", response["control_id"])
+		assert.Equal(t, float64(2), response["count"])
+	})
+
+	t.Run("scope filter reduces summary counts", func(t *testing.T) {
+		input := map[string]interface{}{
+			"catalogName": "test-policy",
+			"scope":       []string{"maturity-1"},
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Arguments: json.RawMessage(inputJSON),
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		textContent := result.Content[0].(*mcp.TextContent)
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		// maturity-1 only matches TEST-001-AR1 (CTRL TEST-001)
+		// TEST-002 has no maturity-1 requirements
+		summary := response["summary"].(map[string]interface{})
+		assert.Equal(t, float64(1), summary["total_controls"])
+		assert.Equal(t, float64(1), summary["total_requirements"])
+
+		controls := response["controls"].([]interface{})
+		assert.Len(t, controls, 1)
+
+		ctrl := controls[0].(map[string]interface{})
+		assert.Equal(t, "TEST-001", ctrl["id"])
+		assert.Equal(t, float64(1), ctrl["requirement_count"])
+
+		// Verify count matches summary
+		assert.Equal(t, float64(1), response["count"])
 	})
 }
