@@ -72,13 +72,11 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 				return nil, fmt.Errorf("policy or catalog %q not found", input.CatalogName)
 			}
 		}
-		requirements := extractFromResolvedPolicy(rp, input.ControlID, input.Scope)
-
-		// Build control-level summaries
 		controlIDs := rp.ControlIDs()
 		if input.ControlID != "" {
 			controlIDs = []string{input.ControlID}
 		}
+		requirements := extractRequirements(rp, controlIDs, input.Scope)
 		summary, controls := rp.ControlSummaries(controlIDs, input.Scope)
 
 		// Build response
@@ -138,14 +136,10 @@ func resolveFromCatalog(store *ResourceStore, name string) (*requirement.Resolve
 	return rp, true
 }
 
-// extractFromResolvedPolicy extracts requirements from a resolved policy graph.
-func extractFromResolvedPolicy(rp *requirement.ResolvedPolicy, filterControlID string, filterScope []string) []AssessmentRequirementInfo {
+// extractRequirements extracts requirements from a resolved policy graph
+// for the given control IDs, optionally filtering by applicability scope.
+func extractRequirements(rp *requirement.ResolvedPolicy, controlIDs []string, filterScope []string) []AssessmentRequirementInfo {
 	var results []AssessmentRequirementInfo
-
-	controlIDs := rp.ControlIDs()
-	if filterControlID != "" {
-		controlIDs = []string{filterControlID}
-	}
 
 	for _, controlID := range controlIDs {
 		for _, req := range rp.RequirementsForControl(controlID) {

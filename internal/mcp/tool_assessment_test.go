@@ -320,29 +320,30 @@ func TestCreateGetAssessmentRequirementsTool(t *testing.T) {
 	assert.Contains(t, required, "catalogName")
 }
 
-func TestExtractFromResolvedPolicy(t *testing.T) {
+func TestExtractRequirements(t *testing.T) {
 	rp := testResolvedPolicy()
+	allIDs := rp.ControlIDs()
 
 	t.Run("extract all", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "", nil)
+		results := extractRequirements(rp, allIDs, nil)
 		assert.Len(t, results, 3)
 	})
 
 	t.Run("filter by control", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "TEST-001", nil)
+		results := extractRequirements(rp, []string{"TEST-001"}, nil)
 		assert.Len(t, results, 2)
 		assert.Equal(t, "TEST-001", results[0].ControlID)
 		assert.Equal(t, "TEST-001", results[1].ControlID)
 	})
 
 	t.Run("parameters populated from assessment plans", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "TEST-001", nil)
+		results := extractRequirements(rp, []string{"TEST-001"}, nil)
 		assert.Equal(t, "90", results[0].Parameters["threshold"])
 		assert.Empty(t, results[1].Parameters)
 	})
 
 	t.Run("filter by scope", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "", []string{"maturity-2"})
+		results := extractRequirements(rp, allIDs, []string{"maturity-2"})
 		assert.Len(t, results, 2)
 		for _, r := range results {
 			assert.Contains(t, r.Applicability, "maturity-2")
@@ -350,22 +351,22 @@ func TestExtractFromResolvedPolicy(t *testing.T) {
 	})
 
 	t.Run("filter by multiple scope values", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "", []string{"maturity-1", "maturity-3"})
+		results := extractRequirements(rp, allIDs, []string{"maturity-1", "maturity-3"})
 		assert.Len(t, results, 3)
 	})
 
 	t.Run("filter by scope and control", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "TEST-001", []string{"maturity-2"})
+		results := extractRequirements(rp, []string{"TEST-001"}, []string{"maturity-2"})
 		assert.Len(t, results, 2)
 	})
 
 	t.Run("scope filters out non-matching", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "", []string{"maturity-1"})
+		results := extractRequirements(rp, allIDs, []string{"maturity-1"})
 		assert.Len(t, results, 1)
 	})
 
 	t.Run("nil scope returns all", func(t *testing.T) {
-		results := extractFromResolvedPolicy(rp, "", nil)
+		results := extractRequirements(rp, allIDs, nil)
 		assert.Len(t, results, 3)
 	})
 }

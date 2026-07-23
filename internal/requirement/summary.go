@@ -19,7 +19,7 @@ type ControlSummary struct {
 // control IDs, optionally filtering by applicability scope. Controls with
 // zero matching requirements are excluded from the result.
 func (rp *ResolvedPolicy) ControlSummaries(controlIDs []string, filterScope []string) (AssessmentSummary, []ControlSummary) {
-	var controls []ControlSummary
+	controls := make([]ControlSummary, 0)
 	totalRequirements := 0
 
 	for _, controlID := range controlIDs {
