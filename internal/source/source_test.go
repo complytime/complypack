@@ -22,13 +22,18 @@ func TestIsOCIReference(t *testing.T) {
 		{"localhost:5000/repo:tag", true},
 		{"ghcr.io/org/repo:latest", true},
 		{"registry.example.com/org/repo:v1.0.0", true},
-		{"http://registry.io/repo", true},
-		{"https://registry.io/image", true},
+		// Scheme-prefixed references with multi-segment paths
+		{"http://registry.io/org/repo", true},
+		{"https://registry.io/org/image", true},
 
 		// Positive cases: tagless OCI references (issue #136)
 		{"ghcr.io/org/catalog", true},
 		{"registry.example.com/org/repo", true},
 		{"localhost/repo", true},
+
+		// Positive cases: IP-based registries
+		{"192.168.1.1/team/catalog", true},
+		{"192.168.1.1:5000/team/catalog", true},
 
 		// Negative cases: not OCI references
 		{"catalog.yaml", false},
@@ -41,6 +46,13 @@ func TestIsOCIReference(t *testing.T) {
 		{"v1.2/config.yaml", false},
 		{"./local/path", false},
 		{"mydir/file", false},
+
+		// Edge cases: DNS-like directory names (PR #190 review feedback)
+		{"my.project/config.yaml", false},
+		{"data.backup/controls.json", false},
+
+		// Edge case: bare-host scheme URL without dot (PR #190 review feedback)
+		{"http://registry/repo", false},
 	}
 
 	for _, tt := range tests {

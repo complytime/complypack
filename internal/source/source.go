@@ -7,6 +7,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -139,11 +140,17 @@ func IsOCIReference(source string) bool {
 	}
 
 	host := ref.Registry
-	if strings.Contains(host, ":") || host == "localhost" {
+	if strings.Contains(host, ":") || host == "localhost" || net.ParseIP(host) != nil {
 		return true
 	}
 
-	return looksLikeDNSName(host)
+	if !looksLikeDNSName(host) {
+		return false
+	}
+
+	// For DNS-name hosts, require at least two path segments (e.g. "org/repo")
+	// to distinguish OCI references from DNS-like directory names (e.g. "my.project/file").
+	return strings.Contains(ref.Repository, "/")
 }
 
 // looksLikeDNSName returns true if s looks like a DNS hostname (e.g. "ghcr.io",
