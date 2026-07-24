@@ -62,7 +62,7 @@ jobs:
 
       - name: Verify module copies match sources
         run: |
-          diff -r skills/mcp-setup module/skills/mcp-setup
+          diff -r skills/setup module/skills/setup
           diff -r skills/audit-pipeline module/skills/audit-pipeline
           diff -r skills/build-assessment module/skills/build-assessment
           diff -r skills/test-driven-assessment module/skills/test-driven-assessment

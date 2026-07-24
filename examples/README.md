@@ -54,7 +54,7 @@ Create symlinks (`.opencode/` is already gitignored):
 mkdir -p .opencode/skills
 ln -s ../../skills/audit-pipeline .opencode/skills/audit-pipeline
 ln -s ../../skills/build-assessment .opencode/skills/build-assessment
-ln -s ../../skills/mcp-setup .opencode/skills/mcp-setup
+ln -s ../../skills/setup .opencode/skills/setup
 ```
 
 Add MCP server config to `.mcp.json`:
