@@ -7,6 +7,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/content/oci"
+	orasreg "oras.land/oras-go/v2/registry"
 )
 
 // ociStoreCache caches OCI store instances by directory path to avoid
@@ -123,9 +125,50 @@ func loadBundleArtifacts(ctx context.Context, ref string, plainHTTP bool, cacheD
 	return result, nil
 }
 
-// IsOCIReference returns true if the source looks like an OCI reference.
+// IsOCIReference returns true if the source looks like an OCI registry reference.
+// It uses oras-go's ParseReference to parse the string according to the OCI distribution
+// spec, then validates that the parsed registry field looks like a network host
+// (contains ":" for a port, equals "localhost", or looks like a DNS name).
 func IsOCIReference(source string) bool {
-	// OCI references contain a registry host (domain with optional port)
-	// Examples: ghcr.io/org/repo:tag, localhost:5000/repo:tag, http://registry/repo
-	return strings.Contains(source, "/") && (strings.Contains(source, ":") || strings.Contains(source, "//"))
+	// Strip scheme prefixes before parsing
+	cleaned := strings.TrimPrefix(source, "http://")
+	cleaned = strings.TrimPrefix(cleaned, "https://")
+
+	ref, err := orasreg.ParseReference(cleaned)
+	if err != nil {
+		return false
+	}
+
+	host := ref.Registry
+	if strings.Contains(host, ":") || host == "localhost" || net.ParseIP(host) != nil {
+		return true
+	}
+
+	if !looksLikeDNSName(host) {
+		return false
+	}
+
+	// For DNS-name hosts, require at least two path segments (e.g. "org/repo")
+	// to distinguish OCI references from DNS-like directory names (e.g. "my.project/file").
+	return strings.Contains(ref.Repository, "/")
+}
+
+// looksLikeDNSName returns true if s looks like a DNS hostname (e.g. "ghcr.io",
+// "registry.example.com") rather than a filesystem path segment (e.g. "v1.2", ".").
+// It requires at least one dot with non-empty alphabetic-containing parts on each side.
+func looksLikeDNSName(s string) bool {
+	idx := strings.LastIndex(s, ".")
+	if idx <= 0 || idx >= len(s)-1 {
+		return false
+	}
+
+	// The part after the last dot (the TLD) must be purely alphabetic (case-insensitive)
+	tld := s[idx+1:]
+	for _, c := range tld {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return false
+		}
+	}
+
+	return true
 }
