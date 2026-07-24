@@ -83,9 +83,22 @@ Examples:
 				Version:     cfg.Version,
 			}
 
-			// Create tarball from content directory
+			// Create tarball from content directory, excluding test
+			// files.  Test files follow the *_test.<ext> convention
+			// and should not be shipped in the published artifact.
 			log.Printf("Packing %s...", contentDir)
-			content, err := packer.TarGzipDir(contentDir)
+			var tarOpts []packer.TarOption
+			reg := evaluator.DefaultRegistry()
+			if eval, evalErr := reg.Get(cfg.EvaluatorID); evalErr == nil {
+				ext := eval.FileExtension()
+				tarOpts = append(tarOpts, packer.WithExclude(func(relPath string) bool {
+					return prepack.IsTestFile(relPath, ext)
+				}))
+			} else {
+				slog.Warn("could not resolve evaluator for test-file exclusion",
+					"evaluator", cfg.EvaluatorID, "error", evalErr)
+			}
+			content, err := packer.TarGzipDir(contentDir, tarOpts...)
 			if err != nil {
 				return fmt.Errorf("creating archive: %w", err)
 			}

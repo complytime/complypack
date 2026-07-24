@@ -352,8 +352,30 @@ func TestCollectFiles(t *testing.T) {
 	assert.Len(t, files, 0)
 }
 
+func TestValidate_SkipsTestFileSyntaxCheck(t *testing.T) {
+	ctx := context.Background()
+	eval := &evaluator.OPA{}
+	s := loadTestCUESchemaInline(t)
+
+	// The testdata/with-tests directory contains a policy file and a
+	// companion _test.rego file that references the policy's deny rule.
+	// Without the fix, the test file would fail single-module syntax
+	// validation with rego_unsafe_var_error.
+	result, err := Validate(
+		ctx, "testdata/with-tests", eval, []cue.Value{s},
+		ValidationOptions{},
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.FilesChecked,
+		"FilesChecked should exclude test files")
+	assert.Empty(t, result.SyntaxErrors,
+		"test files should not cause syntax errors")
+	assert.True(t, result.Valid())
+}
+
 func TestIsTestFile(t *testing.T) {
-	assert.True(t, isTestFile("policy_test.rego", ".rego"))
-	assert.False(t, isTestFile("policy.rego", ".rego"))
-	assert.False(t, isTestFile("test_helper.rego", ".rego"))
+	assert.True(t, IsTestFile("policy_test.rego", ".rego"))
+	assert.False(t, IsTestFile("policy.rego", ".rego"))
+	assert.False(t, IsTestFile("test_helper.rego", ".rego"))
 }

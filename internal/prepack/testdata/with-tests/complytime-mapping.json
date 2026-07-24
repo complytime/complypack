@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "mappings": [
+    {
+      "id": "main",
+      "requirement_id": "TEST-001"
+    }
+  ]
+}
