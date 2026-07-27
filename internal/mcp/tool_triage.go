@@ -38,12 +38,9 @@ func handleGetAutomationTriage(store *ResourceStore) mcp.ToolHandler {
 			return nil, fmt.Errorf("invalid input: %w", err)
 		}
 
-		rp, found := store.resolved[input.PolicyName]
-		if !found {
-			rp, found = resolveFromCatalog(store, input.PolicyName)
-			if !found {
-				return nil, fmt.Errorf("policy %q not found", input.PolicyName)
-			}
+		rp, err := findResolvedPolicy(store, input.PolicyName)
+		if err != nil {
+			return nil, err
 		}
 
 		result := requirement.TriageAssessmentPlans(rp)

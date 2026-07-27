@@ -5,17 +5,13 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
-	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/evaluator"
-	"github.com/complytime/complypack/internal/requirement"
+	"github.com/complytime/complypack/internal/pipeline"
 	"github.com/complytime/complypack/internal/schema"
-	"github.com/complytime/complypack/internal/source"
 	"github.com/complytime/complypack/internal/version"
-	"github.com/complytime/complypack/schemas"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -75,29 +71,15 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Load Gemara artifacts from all configured sources
-	loaded := requirement.NewArtifactSet()
-	for _, entry := range cfg.Gemara.Sources {
-		src, err := source.LoadArtifacts(ctx, entry.Source, entry.PlainHTTP, opts.CacheDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load artifacts from %s: %w", entry.Source, err)
-		}
-		if err := loaded.Merge(src); err != nil {
-			return nil, fmt.Errorf("failed to merge artifacts from %s: %w", entry.Source, err)
-		}
+	// Load Gemara artifacts and resolve policies
+	pipelineResult, err := pipeline.LoadAndResolve(
+		ctx, cfg.Gemara.Sources, opts.CacheDir,
+	)
+	if err != nil {
+		return nil, err
 	}
-
-	// Resolve effective policies
-	resolved := make(map[string]*requirement.ResolvedPolicy)
-	for id, policy := range loaded.Policies {
-		if len(loaded.Catalogs) > 0 || len(loaded.Guidance) > 0 {
-			rp, err := requirement.ResolvePolicy(*policy, loaded)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve effective policy %s: %w", id, err)
-			}
-			resolved[id] = rp
-		}
-	}
+	loaded := pipelineResult.Artifacts
+	resolved := pipelineResult.Resolved
 
 	// Build unified artifact map for MCP resource serving (marshal on demand)
 	allArtifacts := make(map[string]any)
@@ -116,7 +98,7 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 
 	// Load schemas from configured sources
 	schemaReg := schema.DefaultRegistry()
-	schemaMap, cueSchemaMap, err := loadSchemas(ctx, cfg.Schemas, schemaReg)
+	schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, cfg.Schemas, schemaReg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load schemas: %w", err)
 	}
@@ -239,37 +221,4 @@ func createResourceHandler(store *ResourceStore, uri string) mcp.ResourceHandler
 // It delegates to the underlying MCP SDK server's Run method.
 func (s *Server) Run(ctx context.Context, transport mcp.Transport) error {
 	return s.mcp.Run(ctx, transport)
-}
-
-// loadSchemas loads platform schemas via the schema registry.
-// If a schema ref has no explicit source, it checks the schema index for a default.
-func loadSchemas(ctx context.Context, schemaRefs []config.SchemaRef, reg *schema.Registry) (map[string][]byte, map[string]cue.Value, error) {
-	index, err := schemas.LoadIndex()
-	if err != nil {
-		return nil, nil, fmt.Errorf("loading schema index: %w", err)
-	}
-
-	schemaMap := make(map[string][]byte)
-	cueSchemaMap := make(map[string]cue.Value)
-
-	for _, ref := range schemaRefs {
-		platform := ref.Platform
-		source := schemas.ResolveSource(ref, index)
-
-		s, err := reg.Load(ctx, source, platform)
-		if err != nil {
-			if source == "" {
-				slog.Warn("no schema available for platform, skipping",
-					"platform", platform, "error", err)
-				continue
-			}
-			return nil, nil, fmt.Errorf("failed to load schema for platform %s from %s: %w", platform, source, err)
-		}
-
-		schemaMap[platform] = s.Bytes
-		cueSchemaMap[platform] = s.CUE
-		slog.Info("loaded schema", "platform", platform, "source", source)
-	}
-
-	return schemaMap, cueSchemaMap, nil
 }

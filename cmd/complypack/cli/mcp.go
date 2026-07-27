@@ -7,15 +7,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/complytime/complypack/internal/cache"
-	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/mcp"
-	"github.com/complytime/complypack/schemas/jsonschema"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // mcpCmd creates the "mcp" command.
@@ -109,59 +105,6 @@ The server runs until interrupted (Ctrl+C) or the client disconnects.`,
 	return cmd
 }
 
-// buildConfigFromFlags creates a ComplyPackConfig from --source and --schema flag values.
-func buildConfigFromFlags(sources, schemas []string) (*config.ComplyPackConfig, error) {
-	entries, err := parseSourceFlags(sources)
-	if err != nil {
-		return nil, err
-	}
-
-	schemaRefs, err := parseSchemaFlags(schemas)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := config.BuildConfig("", "", "", entries, schemaRefs)
-
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling config: %w", err)
-	}
-
-	if _, err := jsonschema.ValidateConfig(data, false); err != nil {
-		return nil, fmt.Errorf("config validation: %w", err)
-	}
-
-	return cfg, nil
-}
-
-// parseSourceFlags converts --source flag values into GemaraSourceEntry values.
-//
-//   - oci://...        -> GemaraSourceEntry{Source: "oci://...", PlainHTTP: false}
-//   - oci+http://...   -> GemaraSourceEntry{Source: "oci://...", PlainHTTP: true}
-func parseSourceFlags(sources []string) ([]config.GemaraSourceEntry, error) {
-	if len(sources) == 0 {
-		return nil, nil
-	}
-
-	entries := make([]config.GemaraSourceEntry, 0, len(sources))
-	for _, s := range sources {
-		if s == "" {
-			return nil, fmt.Errorf("empty source flag value")
-		}
-
-		entry := config.GemaraSourceEntry{}
-		if strings.HasPrefix(s, "oci+http://") {
-			entry.Source = "oci://" + strings.TrimPrefix(s, "oci+http://")
-			entry.PlainHTTP = true
-		} else {
-			entry.Source = s
-		}
-		entries = append(entries, entry)
-	}
-	return entries, nil
-}
-
 // writeStartupError writes a JSON-RPC error response to stdout so MCP clients
 // can surface the real error message to the user. Without this, clients that
 // communicate over stdio only see the pipe close and report a generic
@@ -195,37 +138,4 @@ func writeStartupError(err error) {
 	}
 	data = append(data, '\n')
 	_, _ = os.Stdout.Write(data)
-}
-
-// parseSchemaFlags converts --schema flag values into SchemaRef values.
-//
-//   - "kubernetes"                        -> SchemaRef{Platform: "kubernetes"} (embedded)
-//   - "ci=cue://cue.dev/x/actions@v0"    -> SchemaRef{Platform: "ci", Source: "cue://..."}
-func parseSchemaFlags(schemas []string) ([]config.SchemaRef, error) {
-	if len(schemas) == 0 {
-		return nil, nil
-	}
-
-	refs := make([]config.SchemaRef, 0, len(schemas))
-	for _, s := range schemas {
-		if s == "" {
-			return nil, fmt.Errorf("empty schema flag value")
-		}
-
-		ref := config.SchemaRef{}
-		if idx := strings.IndexByte(s, '='); idx >= 0 {
-			ref.Platform = s[:idx]
-			ref.Source = s[idx+1:]
-			if ref.Platform == "" {
-				return nil, fmt.Errorf("empty platform name in schema flag %q", s)
-			}
-			if ref.Source == "" {
-				return nil, fmt.Errorf("empty source for platform %q in schema flag %q", ref.Platform, s)
-			}
-		} else {
-			ref.Platform = s
-		}
-		refs = append(refs, ref)
-	}
-	return refs, nil
 }

@@ -28,7 +28,7 @@ func testLoadAllSchemas(t *testing.T) (map[string][]byte, map[string]cue.Value) 
 		{Platform: "kubernetes-deployment"},
 	}
 
-	schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+	schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 	require.NoError(t, err)
 	return schemaMap, cueSchemaMap
 }
@@ -309,7 +309,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 		{Platform: "kubernetes-deployment"},
 		{Platform: "kubernetes-pod"},
 	}
-	schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+	schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 	require.NoError(t, err)
 	store := NewResourceStore(map[string]any{}, nil, schemaMap, cueSchemaMap, evaluator.DefaultRegistry())
 
@@ -402,7 +402,7 @@ func TestHandleTestPolicy(t *testing.T) {
 		{Platform: "kubernetes-deployment"},
 		{Platform: "kubernetes-pod"},
 	}
-	schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+	schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 	require.NoError(t, err)
 	store := NewResourceStore(map[string]any{}, nil, schemaMap, cueSchemaMap, evaluator.DefaultRegistry())
 
