@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -18,6 +17,41 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Inline Rego policy strings for wiring tests.
+// These replace the former testdata/policies/ files to avoid duplication
+// with internal/prepack/testdata/ (see design in issue #151).
+
+const regoValidPolicy = `package mcp.valid
+
+import rego.v1
+
+deny contains msg if {
+	input.kind == "Pod"
+	not input.metadata.name
+	msg := "Pods must have a name"
+}`
+
+const regoSyntaxErrorPolicy = `package mcp.syntax_error
+
+import rego.v1
+
+deny contains msg if {
+	input.kind == "Pod"
+	not input.metadata.labels["app"]
+	msg := "Pods must have 'app' label"
+  # Missing closing brace`
+
+const regoContractViolationPolicy = `package mcp.contract_violation
+
+import rego.v1
+
+deny contains msg if {
+	input.kind == "Pod"
+	# This field doesn't exist in Kubernetes schema
+	not input.metadata.invalid_field
+	msg := "Contract violation example"
+}`
 
 // testLoadAllSchemas loads a representative subset of schemas for testing.
 func testLoadAllSchemas(t *testing.T) (map[string][]byte, map[string]cue.Value) {
@@ -317,7 +351,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		policyFile    string
+		policyContent string
 		platform      string
 		wantValid     bool
 		wantSyntaxErr bool
@@ -325,7 +359,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 	}{
 		{
 			name:          "valid policy",
-			policyFile:    "testdata/policies/valid.rego",
+			policyContent: regoValidPolicy,
 			platform:      "kubernetes-pod",
 			wantValid:     true,
 			wantSyntaxErr: false,
@@ -333,7 +367,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 		},
 		{
 			name:          "syntax error",
-			policyFile:    "testdata/policies/syntax-error.rego",
+			policyContent: regoSyntaxErrorPolicy,
 			platform:      "kubernetes-pod",
 			wantValid:     false,
 			wantSyntaxErr: true,
@@ -341,7 +375,7 @@ func TestHandleValidatePolicy(t *testing.T) {
 		},
 		{
 			name:          "contract violation",
-			policyFile:    "testdata/policies/contract-violation.rego",
+			policyContent: regoContractViolationPolicy,
 			platform:      "kubernetes-pod",
 			wantValid:     false,
 			wantSyntaxErr: false,
@@ -351,13 +385,9 @@ func TestHandleValidatePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Read policy file
-			policyContent, err := os.ReadFile(tt.policyFile)
-			require.NoError(t, err)
-
 			// Build request
 			input := map[string]interface{}{
-				"policyContent": string(policyContent),
+				"policyContent": tt.policyContent,
 				"platform":      tt.platform,
 			}
 			inputJSON, err := json.Marshal(input)
@@ -410,15 +440,15 @@ func TestHandleTestPolicy(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		policyFile        string
+		policyContent     string
 		testData          map[string]interface{}
 		platform          string
 		wantDataValid     bool
 		wantTestsExecuted bool
 	}{
 		{
-			name:       "valid test data",
-			policyFile: "testdata/policies/valid.rego",
+			name:          "valid test data",
+			policyContent: regoValidPolicy,
 			testData: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "Pod",
@@ -439,8 +469,8 @@ func TestHandleTestPolicy(t *testing.T) {
 			wantTestsExecuted: true,
 		},
 		{
-			name:       "invalid platform",
-			policyFile: "testdata/policies/valid.rego",
+			name:          "invalid platform",
+			policyContent: regoValidPolicy,
 			testData: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "Pod",
@@ -453,13 +483,9 @@ func TestHandleTestPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Read policy file
-			policyContent, err := os.ReadFile(tt.policyFile)
-			require.NoError(t, err)
-
 			// Build request
 			input := map[string]interface{}{
-				"policyContent": string(policyContent),
+				"policyContent": tt.policyContent,
 				"testData":      tt.testData,
 				"platform":      tt.platform,
 			}

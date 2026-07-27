@@ -1,8 +1,0 @@
-{
-  "apiVersion": "v1",
-  "kind": "InvalidKind",
-  "metadata": {
-    "name": 123
-  },
-  "spec": {}
-}

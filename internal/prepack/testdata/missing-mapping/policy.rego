@@ -1,4 +1,4 @@
-package main
+package prepack.missing_mapping
 
 import rego.v1
 

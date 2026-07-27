@@ -1,4 +1,4 @@
-package main
+package prepack.syntax_error
 
 import rego.v1
 

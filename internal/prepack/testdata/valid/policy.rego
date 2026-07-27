@@ -1,4 +1,4 @@
-package main
+package prepack.valid
 
 import rego.v1
 
