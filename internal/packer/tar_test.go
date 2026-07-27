@@ -17,7 +17,7 @@ import (
 func TestTarGzipDir(t *testing.T) {
 	t.Run("creates valid tar.gz", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package main"), 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package packer.tar_valid"), 0600))
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "lib"), 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "lib", "helpers.rego"), []byte("package lib"), 0600))
 
@@ -31,7 +31,7 @@ func TestTarGzipDir(t *testing.T) {
 
 	t.Run("excludes hidden files", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package main"), 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "policy.rego"), []byte("package packer.tar_hidden"), 0600))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".hidden"), []byte("secret"), 0600))
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("git"), 0600))
