@@ -8,7 +8,7 @@ user-invocable: false
 
 Compile or alter a Gemara Policy artifact. Declares what controls apply, with exact parameter values, and defines the adherence plan: frequency, evaluation method, and evidence requirements.
 
-Evidence collection and Evaluation Logs are produced by `complyctl` at runtime.
+Evidence collection and Evaluation Logs are produced at runtime by a compliant evaluation engine.
 
 ## Prerequisites
 
@@ -57,6 +57,9 @@ Ask the user: "Who is the trusted evaluator for automated assessments?" Read `co
 - `version` — evaluator version
 
 This becomes the **default** executor for all automated plans, set as a global evaluation method on `adherence.evaluation-methods`. Individual assessment plans can override this with their own `evaluation-methods` and `executor` when a specific requirement needs a different evaluator or mode.
+
+> **Runtime requirement — `executor` field:**
+> A runtime uses the `executor` field to route automated assessment plans to the correct policy engine. Every evaluation method with `mode: Automated` **must** include an `executor` block (with at minimum `id` and `name`). Without it, the runtime cannot connect the assessment plan to its evaluator and the plan will fail at runtime. Common executors include `opa` (Open Policy Agent) and `ampel`. Manual plans do not need an executor.
 
 #### 4b: Triage requirements by automation eligibility
 
