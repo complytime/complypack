@@ -38,6 +38,10 @@ adherence:
       type: Behavioral
       mode: Automated
       description: Policy evaluation using OPA/Rego rules against resource configurations.
+      executor:
+        id: opa
+        name: Open Policy Agent
+        type: Software
   assessment-plans:
     - id: ap-tls-version
       requirement-id: CTL-TLS-001-AR1
@@ -46,6 +50,10 @@ adherence:
         - id: eval-tls-version
           type: Behavioral
           mode: Automated
+          executor:
+            id: opa
+            name: Open Policy Agent
+            type: Software
       parameters:
         - id: param-tls-min-version
           label: tls_minimum_version
@@ -60,6 +68,10 @@ adherence:
         - id: eval-tls-ciphers
           type: Behavioral
           mode: Automated
+          executor:
+            id: opa
+            name: Open Policy Agent
+            type: Software
       parameters:
         - id: param-approved-ciphers
           label: approved_cipher_suites
@@ -75,6 +87,10 @@ adherence:
         - id: eval-cert-validity
           type: Behavioral
           mode: Automated
+          executor:
+            id: opa
+            name: Open Policy Agent
+            type: Software
       evidence-requirements: Certificate metadata including notBefore, notAfter, and issuer fields.
       parameters:
         - id: param-max-validity-days
@@ -89,6 +105,10 @@ adherence:
         - id: eval-cert-issuer
           type: Behavioral
           mode: Automated
+          executor:
+            id: opa
+            name: Open Policy Agent
+            type: Software
       parameters:
         - id: param-approved-issuers
           label: approved_certificate_authorities

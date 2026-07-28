@@ -62,3 +62,34 @@ Every entry in `adherence.assessment-plans` SHALL contain `id`,
 
 Every entry in `adherence.assessment-plans[].parameters` SHALL contain `id`,
 `label`, `accepted-values`, and `description`.
+
+### 6. Executor on automated evaluation methods
+
+Every evaluation method with `mode: Automated` — whether in the global
+`adherence.evaluation-methods` or in a per-plan `evaluation-methods` override —
+SHALL include an `executor` block with at least `id` and `name`. A runtime
+routes automated plans to the policy engine named by `executor.id`; a
+missing executor causes a runtime connectivity failure.
+
+**Failing example** (automated, no `executor` — FAIL):
+```yaml
+evaluation-methods:
+  - id: eval-opa
+    type: Behavioral
+    mode: Automated
+```
+
+**Passing example** (automated, with `executor` — PASS):
+```yaml
+evaluation-methods:
+  - id: eval-opa
+    type: Behavioral
+    mode: Automated
+    executor:
+      id: opa
+      name: Open Policy Agent
+      type: Software
+```
+
+Evaluation methods with `mode: Manual` SHALL NOT have an `executor` — skip
+this check for manual methods.

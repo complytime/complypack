@@ -19,7 +19,7 @@ Guide users through building a Gemara Policy (applicability statement) from thei
 | mapping   | `.complytime/delta-report.yaml`   | Parameter delta analysis + harmonization across framework layers |
 | adherence | `.complytime/child-policy.yaml`   | Compile the child Policy with adherence plan                     |
 
-After adherence, invoke `/comply:build-assessment` to generate assessment logic for use with `complyctl`.
+After adherence, invoke `/comply:build-assessment` to generate assessment logic for use at runtime.
 
 ## Router Logic
 
