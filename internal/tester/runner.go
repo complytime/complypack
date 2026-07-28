@@ -5,6 +5,7 @@ package tester
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/tester"
@@ -26,9 +27,12 @@ func Run(ctx context.Context, files map[string]string) (*Results, error) {
 		return &Results{}, nil
 	}
 
-	// Parse all modules
+	// Parse all Rego modules, skipping non-Rego files
 	modules := make(map[string]*ast.Module, len(files))
 	for name, src := range files {
+		if !strings.HasSuffix(name, ".rego") {
+			continue
+		}
 		mod, err := ast.ParseModuleWithOpts(name, src, ast.ParserOptions{RegoVersion: ast.RegoV1})
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse %s: %w", name, err)
