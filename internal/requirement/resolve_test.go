@@ -443,7 +443,7 @@ func TestResolveFromCatalog(t *testing.T) {
 		assert.Equal(t, "C-001-AR1", rp.RequirementsForControl("C-001")[0].Id)
 	})
 
-	t.Run("returns error for nil catalog controls", func(t *testing.T) {
+	t.Run("empty catalog returns valid empty result", func(t *testing.T) {
 		cat := &gemara.ControlCatalog{
 			Metadata: gemara.Metadata{Id: "empty-cat"},
 		}

@@ -27,7 +27,10 @@ func findResolvedPolicy(
 	}
 	cat, ok := art.(*gemara.ControlCatalog)
 	if !ok {
-		return nil, fmt.Errorf("policy or catalog %q not found", name)
+		return nil, fmt.Errorf(
+			"artifact %q is not a policy or catalog (has type %T)",
+			name, art,
+		)
 	}
 
 	rp, err := requirement.ResolveFromCatalog(name, cat)
