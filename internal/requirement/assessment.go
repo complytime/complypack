@@ -64,16 +64,3 @@ func ExtractAssessmentRequirements(
 
 	return results
 }
-
-// ApplicabilityIntersects returns true if any value in applicability
-// matches any value in scope.
-func ApplicabilityIntersects(applicability, scope []string) bool {
-	for _, a := range applicability {
-		for _, s := range scope {
-			if a == s {
-				return true
-			}
-		}
-	}
-	return false
-}

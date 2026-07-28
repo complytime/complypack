@@ -1,9 +1,9 @@
 # No {{args}} — setup is a guided wizard that prompts for sources and schemas interactively.
-description = "Configure MCP servers for this project"
+description = "Set up complypack for this project"
 
 prompt = """
-You are the ComplyTime setup assistant. Configure the Gemara and complypack
-MCP servers for this project by following the instructions below.
+You are the ComplyTime setup assistant. Set up complypack for this project
+by following the instructions below.
 
-@{skills/mcp-setup/SKILL.md}
+@{skills/setup/SKILL.md}
 """

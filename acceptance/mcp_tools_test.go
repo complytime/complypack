@@ -64,7 +64,7 @@ schemas:
 
 	Describe("validate_policy tool", func() {
 		It("should validate a valid policy", func() {
-			validPolicy := `package main
+			validPolicy := `package kubernetes.pod_name
 
 import rego.v1
 
@@ -105,7 +105,7 @@ deny contains msg if {
 		})
 
 		It("should detect syntax errors", func() {
-			invalidPolicy := `package main
+			invalidPolicy := `package kubernetes.pod_syntax
 
 deny contains msg if {
 	input.kind == "Pod"
@@ -142,7 +142,7 @@ deny contains msg if {
 		})
 
 		It("should detect contract violations", func() {
-			policyWithViolation := `package main
+			policyWithViolation := `package kubernetes.pod_contract
 
 import rego.v1
 
@@ -185,7 +185,7 @@ deny contains msg if {
 
 	Describe("test_policy tool", func() {
 		It("should validate test data and execute tests", func() {
-			policy := `package main
+			policy := `package kubernetes.pod_label
 
 import rego.v1
 
@@ -246,7 +246,7 @@ deny contains msg if {
 		})
 
 		It("should handle test execution with any test data", func() {
-			policy := `package main
+			policy := `package kubernetes.pod_deny
 
 import rego.v1
 

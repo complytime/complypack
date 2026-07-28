@@ -9,7 +9,7 @@ an MCP server for working with Gemara catalogs.
 
 > **Note:** All examples below use `podman`. Docker users can substitute
 > `docker` directly — the commands are interchangeable. The setup command
-> (`/comply:mcp-setup` or `/comply-setup`) auto-detects which runtime is
+> (`/comply:setup` or `/comply-setup`) auto-detects which runtime is
 > available and generates the correct configuration.
 
 ## Claude Code
@@ -21,7 +21,7 @@ Add the ComplyTime marketplace and install the plugin:
 /plugin install comply@complytime
 ```
 
-The skills (`/comply:mcp-setup`, `/comply:build-assessment`, `/comply:audit-pipeline`) are
+The skills (`/comply:setup`, `/comply:build-assessment`, `/comply:audit-pipeline`) are
 auto-discovered once the plugin is installed. To configure the MCP server,
 create a `.mcp.json` in your project:
 

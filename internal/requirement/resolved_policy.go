@@ -14,6 +14,7 @@ type ResolvedPolicy struct {
 	controlCatalogsByID  map[string]*gemara.ControlCatalog
 	guidanceCatalogsByID map[string]*gemara.GuidanceCatalog
 	controlIDs           []string
+	controlIndex         map[string]*gemara.Control
 	reqIndex             map[string][]gemara.AssessmentRequirement
 	paramIndex           map[string][]gemara.Parameter
 }
@@ -41,13 +42,16 @@ func (rp *ResolvedPolicy) buildIndexes() {
 	}
 
 	rp.reqIndex = make(map[string][]gemara.AssessmentRequirement)
+	rp.controlIndex = make(map[string]*gemara.Control)
 	var ids []string
 	seen := make(map[string]bool)
-	for _, catalog := range rp.ControlCatalogs {
-		for _, control := range catalog.Controls {
+	for i := range rp.ControlCatalogs {
+		for j := range rp.ControlCatalogs[i].Controls {
+			control := &rp.ControlCatalogs[i].Controls[j]
 			if !seen[control.Id] {
 				ids = append(ids, control.Id)
 				seen[control.Id] = true
+				rp.controlIndex[control.Id] = control
 			}
 			rp.reqIndex[control.Id] = append(rp.reqIndex[control.Id], control.AssessmentRequirements...)
 		}
@@ -80,6 +84,11 @@ func (rp *ResolvedPolicy) GuidanceCatalog(id string) *gemara.GuidanceCatalog {
 // ControlIDs returns all control IDs across resolved catalogs.
 func (rp *ResolvedPolicy) ControlIDs() []string {
 	return rp.controlIDs
+}
+
+// ControlByID returns the control with the given ID, or nil if not found.
+func (rp *ResolvedPolicy) ControlByID(controlID string) *gemara.Control {
+	return rp.controlIndex[controlID]
 }
 
 // ParametersForRequirement returns parameters from assessment plans for the given requirement ID.

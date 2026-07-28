@@ -200,6 +200,9 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 	applicabilityTool := createGetApplicabilityGroupsTool()
 	mcpServer.AddTool(applicabilityTool, handleGetApplicabilityGroups(store))
 
+	coverageTool := createGetCoverageReportTool()
+	mcpServer.AddTool(coverageTool, handleGetCoverageReport(store))
+
 	return &Server{
 		mcp:           mcpServer,
 		ResourceStore: store,

@@ -64,12 +64,20 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 			rp, input.ControlID, input.Scope,
 		)
 
+		controlIDs := rp.ControlIDs()
+		if input.ControlID != "" {
+			controlIDs = []string{input.ControlID}
+		}
+		summary, controls := rp.ControlSummaries(controlIDs, input.Scope)
+
 		// Build response
 		responseData, err := json.Marshal(map[string]interface{}{
 			"catalog":      input.CatalogName,
 			"control_id":   input.ControlID,
 			"scope":        input.Scope,
 			"count":        len(requirements),
+			"summary":      summary,
+			"controls":     controls,
 			"requirements": requirements,
 		})
 		if err != nil {
@@ -85,6 +93,7 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 		}, nil
 	}
 }
+
 
 // GetAssessmentRequirementsHandler returns the handler (for testing).
 func GetAssessmentRequirementsHandler(store *ResourceStore) mcp.ToolHandler {

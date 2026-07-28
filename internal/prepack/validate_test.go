@@ -285,7 +285,7 @@ func TestValidate_MultipleRequiredFiles_PartialPresence(t *testing.T) {
 
 	err = os.WriteFile(
 		filepath.Join(contentDir, "policy.rego"),
-		[]byte("package main\nimport rego.v1\n\ndeny contains msg if {\n"+
+		[]byte("package prepack.required_files\nimport rego.v1\n\ndeny contains msg if {\n"+
 			"\tinput.kind == \"Pod\"\n\tmsg := \"test\"\n}\n"),
 		0o600,
 	)

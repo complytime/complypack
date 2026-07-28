@@ -11,6 +11,7 @@ Business logic belongs in domain packages:
 - `internal/prepack/` — contract validation
 - `internal/evaluator/` — policy evaluation
 - `internal/schema/` — schema loading and registry
+- `internal/coverage/` — coverage analysis and gap reporting
 
 When adding a new MCP tool or CLI command, write the logic as an exported function in the appropriate domain package first, then wire it from the transport layer.
 

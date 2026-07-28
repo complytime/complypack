@@ -16,7 +16,7 @@ in your tool's MCP configuration. See `mcps.json` for the base template.
 | Skill | Trigger | Purpose |
 |-------|---------|---------|
 | `using-complypack` | Starting any compliance task | Establishes skill ordering and MCP grounding requirements |
-| `mcp-setup` | User wants to configure MCP servers | Interactive setup wizard for complypack and gemara MCP servers |
+| `setup` | User wants to set up complypack | Interactive setup: generates complypack.yaml, warms cache, optional MCP config |
 | `audit-pipeline` | User wants to build compliance artifacts or prepare for audit | Three-stage pipeline: scoping, mapping, adherence |
 | `build-assessment` | User mentions Rego, Conftest, OPA, or policy generation | Test-driven Rego policy generation from Gemara catalogs |
 | `test-driven-assessment` | Internal (invoked by build-assessment) | Generates human-reviewable test cases before policy is written |
