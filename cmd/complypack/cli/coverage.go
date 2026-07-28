@@ -20,6 +20,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Output format constants.
+const (
+	formatHuman = "human"
+	formatText  = "text"
+	formatJSON  = "json"
+)
+
 var (
 	styleTitle   = lipgloss.NewStyle().Bold(true)
 	styleControl = lipgloss.NewStyle().Bold(true)
@@ -39,7 +46,7 @@ func coverageCmd() *cobra.Command {
 		cacheDir   string
 		evalID     string
 		runTests   bool
-		output     string
+		format     string
 		sources    []string
 	)
 
@@ -54,11 +61,20 @@ Requirements are classified into three buckets:
   - Implemented (failing) — enforcement artifact exists, tests fail
   - Gap — no enforcement artifact exists
 
+Output formats:
+  human  Styled output with Unicode symbols and color (default for terminals)
+  text   Plain bracketed labels ([PASS], [FAIL], [OK], [GAP]) for CI/grep
+  json   Structured JSON object
+
 Examples:
   complypack coverage --policy my-policy --policy-dir ./policy --config complypack.yaml
   complypack coverage --policy my-policy --policy-dir ./policy --source oci://ghcr.io/org/catalog:v1
-  complypack coverage --policy my-policy --policy-dir ./policy --output json`,
+  complypack coverage --policy my-policy --policy-dir ./policy --format json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			resolvedFormat, err := resolveFormat(format)
+			if err != nil {
+				return err
+			}
 			return runCoverage(cmd, coverageRunParams{
 				policyName: policyName,
 				policyDir:  policyDir,
@@ -66,7 +82,7 @@ Examples:
 				cacheDir:   cacheDir,
 				evalID:     evalID,
 				runTests:   runTests,
-				output:     output,
+				format:     resolvedFormat,
 				sources:    sources,
 				stdout:     cmd.OutOrStdout(),
 			})
@@ -79,13 +95,34 @@ Examples:
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", cache.CacheDirHelp)
 	cmd.Flags().StringVar(&evalID, "evaluator", "", "Evaluator ID (auto-detected if omitted)")
 	cmd.Flags().BoolVar(&runTests, "run-tests", false, "Execute tests for pass/fail enrichment")
-	cmd.Flags().StringVarP(&output, "output", "o", "text", "Output format: text or json")
+	cmd.Flags().StringVarP(&format, "format", "f", "", "Output format: human, text, or json (default: auto-detected)")
 	cmd.Flags().StringArrayVar(&sources, "source", nil, "Gemara OCI source (repeatable)")
 
 	_ = cmd.MarkFlagRequired("policy")
 	_ = cmd.MarkFlagRequired("policy-dir")
 
+	_ = cmd.RegisterFlagCompletionFunc("format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return []string{formatHuman, formatText, formatJSON}, cobra.ShellCompDirectiveNoFileComp
+	})
+
 	return cmd
+}
+
+// resolveFormat determines the output format from the flag value and environment.
+// When no flag is provided, it defaults to "text" if NO_COLOR is set, otherwise "human".
+func resolveFormat(flagValue string) (string, error) {
+	if flagValue != "" {
+		switch flagValue {
+		case formatHuman, formatText, formatJSON:
+			return flagValue, nil
+		default:
+			return "", fmt.Errorf("unknown format %q; valid formats: human, text, json", flagValue)
+		}
+	}
+	if os.Getenv("NO_COLOR") != "" {
+		return formatText, nil
+	}
+	return formatHuman, nil
 }
 
 // coverageRunParams holds parsed CLI parameters for the coverage command.
@@ -96,7 +133,7 @@ type coverageRunParams struct {
 	cacheDir   string
 	evalID     string
 	runTests   bool
-	output     string
+	format     string
 	sources    []string
 	stdout     io.Writer
 }
@@ -184,13 +221,15 @@ func runCoverage(cmd *cobra.Command, params coverageRunParams) error {
 	}
 
 	// Format output
-	switch params.output {
-	case "json":
+	switch params.format {
+	case formatJSON:
 		return writeJSON(params.stdout, report)
-	case "text", "":
-		return writeText(params.stdout, report)
+	case formatText:
+		return writePlainText(params.stdout, report)
+	case formatHuman:
+		return writeHuman(params.stdout, report)
 	default:
-		return fmt.Errorf("unknown output format %q; use text or json", params.output)
+		return fmt.Errorf("unknown format %q; valid formats: human, text, json", params.format)
 	}
 }
 
@@ -201,8 +240,86 @@ func writeJSON(w io.Writer, report *coverage.Report) error {
 	return enc.Encode(report)
 }
 
-// writeText formats the report as human-readable text grouped by control.
-func writeText(w io.Writer, report *coverage.Report) error {
+// writePlainText formats the report as plain text with bracketed labels
+// ([PASS], [FAIL], [OK], [GAP]) suitable for CI logs and grep.
+func writePlainText(w io.Writer, report *coverage.Report) error {
+	fmt.Fprintf(w, "Coverage Report: %s\n", report.PolicyID)
+	fmt.Fprintln(w, strings.Repeat("=", 50))
+
+	type controlGroup struct {
+		controlID    string
+		requirements []coverage.RequirementEntry
+	}
+	groupMap := make(map[string]*controlGroup)
+	var groupOrder []string
+
+	for _, req := range report.Requirements {
+		cid := req.ControlID
+		if cid == "" {
+			cid = "(ungrouped)"
+		}
+		if _, ok := groupMap[cid]; !ok {
+			groupMap[cid] = &controlGroup{controlID: cid}
+			groupOrder = append(groupOrder, cid)
+		}
+		groupMap[cid].requirements = append(groupMap[cid].requirements, req)
+	}
+	sort.Strings(groupOrder)
+
+	for _, cid := range groupOrder {
+		g := groupMap[cid]
+		fmt.Fprintf(w, "\n  %s\n", g.controlID)
+		for _, req := range g.requirements {
+			fmt.Fprintf(w, "    %s %s\n", plainStatusIndicator(req.Status), req.RequirementID)
+		}
+	}
+
+	if len(report.Warnings) > 0 {
+		fmt.Fprintln(w)
+		for _, warn := range report.Warnings {
+			fmt.Fprintf(w, "  WARNING: %s\n", warn.Message)
+		}
+	}
+
+	if len(report.Manual) > 0 {
+		fmt.Fprintf(w, "\n  Manual requirements (excluded from coverage): %d\n", len(report.Manual))
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, strings.Repeat("-", 50))
+
+	fmt.Fprintf(w, "  %d/%d requirements covered (%.1f%%)\n",
+		report.Metrics.Implemented, report.Metrics.TotalAutomated,
+		report.Metrics.CoveragePercent)
+	if report.Metrics.Passing > 0 || report.Metrics.Failing > 0 {
+		fmt.Fprintf(w, "  Passing: %d  Failing: %d\n",
+			report.Metrics.Passing, report.Metrics.Failing)
+	}
+	if report.Metrics.Gaps > 0 {
+		fmt.Fprintf(w, "  Gaps: %d\n", report.Metrics.Gaps)
+	}
+
+	return nil
+}
+
+// plainStatusIndicator returns a bracketed label for a requirement status.
+func plainStatusIndicator(status coverage.RequirementStatus) string {
+	switch status {
+	case coverage.StatusImplementedPassing:
+		return "[PASS]"
+	case coverage.StatusImplementedFailing:
+		return "[FAIL]"
+	case coverage.StatusImplemented:
+		return "[OK]  "
+	case coverage.StatusGap:
+		return "[GAP] "
+	default:
+		return "[?]   "
+	}
+}
+
+// writeHuman formats the report as styled text with Unicode symbols and color.
+func writeHuman(w io.Writer, report *coverage.Report) error {
 	fmt.Fprintln(w, styleTitle.Render(fmt.Sprintf("Coverage Report: %s", report.PolicyID)))
 	fmt.Fprintln(w, styleDim.Render(strings.Repeat("━", 50)))
 

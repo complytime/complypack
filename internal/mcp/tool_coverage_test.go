@@ -51,12 +51,9 @@ func testCoveragePolicy() *requirement.ResolvedPolicy {
 		},
 	}
 
-	set := &requirement.ArtifactSet{
-		Catalogs: map[string]*gemara.ControlCatalog{"coverage-catalog": catalog},
-		Policies: map[string]*gemara.Policy{"coverage-policy": policy},
-		Guidance: make(map[string]*gemara.GuidanceCatalog),
-		Mappings: make(map[string]*gemara.MappingDocument),
-	}
+	set := requirement.NewArtifactSet()
+	set.Catalogs["coverage-catalog"] = catalog
+	set.Policies["coverage-policy"] = policy
 
 	rp, err := requirement.ResolvePolicy(*policy, set)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -355,6 +356,68 @@ func TestRun_TestEnrichment_Failing(t *testing.T) {
 	assert.Equal(t, StatusImplementedFailing, report.Requirements[0].Status)
 	assert.Equal(t, 1, report.Metrics.Failing)
 	assert.Len(t, report.Requirements[0].TestErrors, 1)
+
+	// Verify aggregate attribution warning is present
+	require.NotEmpty(t, report.Warnings, "should warn about aggregate attribution")
+	found := false
+	for _, w := range report.Warnings {
+		if strings.Contains(w.Message, "per-requirement attribution is not yet available") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "should contain aggregate attribution warning")
+}
+
+func TestRun_TestEnrichment_AggregateAttribution(t *testing.T) {
+	dir := t.TempDir()
+
+	controls := []testControl{
+		{controlID: "CTL-001", requirementIDs: []string{"CTL-001-AR1", "CTL-001-AR2"}},
+		{controlID: "CTL-002", requirementIDs: []string{"CTL-002-AR1"}},
+	}
+	rp := buildTestPolicy("test-policy", controls, gemara.ModeAutomated)
+
+	writeMappingFile(t, dir, []MappingEntry{
+		{ID: "ctl_001_ar1", RequirementID: "CTL-001-AR1"},
+		{ID: "ctl_001_ar2", RequirementID: "CTL-001-AR2"},
+		{ID: "ctl_002_ar1", RequirementID: "CTL-002-AR1"},
+	})
+	writeRegoFile(t, dir, "ctl_001_ar1")
+	writeRegoFile(t, dir, "ctl_001_ar2")
+	writeRegoFile(t, dir, "ctl_002_ar1")
+
+	eval := newOPAEval()
+	eval.testResults = &evaluator.TestResults{
+		Total: 3, Passed: 2, Failed: 1,
+		Errors: []string{"test_ctl_002_ar1 failed"},
+	}
+
+	report, err := Run(context.Background(), Options{
+		ResolvedPolicy: rp,
+		PolicyDir:      dir,
+		Evaluator:      eval,
+		RunTests:       true,
+	})
+	require.NoError(t, err)
+
+	// All 3 implemented requirements should be marked failing (aggregate behavior)
+	for _, req := range report.Requirements {
+		assert.Equal(t, StatusImplementedFailing, req.Status,
+			"requirement %s should be marked failing due to aggregate attribution", req.RequirementID)
+	}
+	assert.Equal(t, 3, report.Metrics.Failing)
+	assert.Equal(t, 0, report.Metrics.Passing)
+
+	// Must include the aggregate attribution warning
+	found := false
+	for _, w := range report.Warnings {
+		if strings.Contains(w.Message, "1 of 3 tests failed") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "should warn about aggregate attribution with failure counts")
 }
 
 func TestRun_TestEnrichment_Disabled(t *testing.T) {

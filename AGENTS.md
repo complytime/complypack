@@ -22,17 +22,3 @@ New capabilities SHOULD be exposed through both the CLI and the MCP server where
 ### Testing follows the same split
 
 Domain package tests cover logic and edge cases. Transport layer tests only verify wiring: correct input parsing, delegation to the domain function, and response serialization.
-
-## Convention Packs
-
-This repository uses convention packs scaffolded by
-unbound-force. Agents MUST read the applicable pack(s)
-before writing or reviewing code.
-
-- `.opencode/uf/packs/default.md`
-- `.opencode/uf/packs/default-custom.md`
-- `.opencode/uf/packs/severity.md`
-- `.opencode/uf/packs/content.md`
-- `.opencode/uf/packs/content-custom.md`
-- `.opencode/uf/packs/go.md`
-- `.opencode/uf/packs/go-custom.md`

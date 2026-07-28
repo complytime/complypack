@@ -324,7 +324,16 @@ func enrichWithTestResults(ctx context.Context, report *Report, opts Options) er
 			}
 		}
 	} else {
-		// Mark all implemented as failing (test results are aggregate, not per-requirement)
+		// Test results are aggregate (not per-requirement) so we cannot determine
+		// which specific requirements failed. Mark all implemented as failing and
+		// warn the user about reduced attribution precision.
+		report.Warnings = append(report.Warnings, Warning{
+			Message: fmt.Sprintf(
+				"test results are aggregate: %d of %d tests failed, "+
+					"but per-requirement attribution is not yet available — "+
+					"all implemented requirements are marked as failing",
+				results.Failed, results.Total),
+		})
 		for i := range report.Requirements {
 			if report.Requirements[i].Status == StatusImplemented {
 				report.Requirements[i].Status = StatusImplementedFailing
