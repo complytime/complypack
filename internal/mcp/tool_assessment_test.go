@@ -458,4 +458,3 @@ func TestHandleGetAssessmentRequirements_Summary(t *testing.T) {
 		assert.Equal(t, float64(1), response["count"])
 	})
 }
-

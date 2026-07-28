@@ -94,7 +94,6 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 	}
 }
 
-
 // GetAssessmentRequirementsHandler returns the handler (for testing).
 func GetAssessmentRequirementsHandler(store *ResourceStore) mcp.ToolHandler {
 	return handleGetAssessmentRequirements(store)
