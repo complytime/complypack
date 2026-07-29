@@ -37,9 +37,9 @@ func CheckContract(filename string, src string, schema cue.Value) ([]ContractVio
 	// Check each reference against the schema
 	var violations []ContractViolation
 	for _, ref := range inputRefs {
-		if !pathExistsInSchema(ref.path, schema) {
+		if !pathExistsInSchema(ref.segments, schema) {
 			violations = append(violations, ContractViolation{
-				Path:     ref.path,
+				Path:     ref.rawPath,
 				Location: ref.location,
 			})
 		}
@@ -50,8 +50,9 @@ func CheckContract(filename string, src string, schema cue.Value) ([]ContractVio
 
 // inputRef represents a reference to input.* in the policy.
 type inputRef struct {
-	path     string // The full path (e.g., "input.metadata.name")
-	location string // Location in the policy file
+	segments []string // Structured path segments (e.g., ["input", "metadata", "name"])
+	rawPath  string   // Display path (e.g., "input.metadata.name" or `input.metadata.annotations["cert-manager.io/duration"]`)
+	location string   // Location in the policy file
 }
 
 // extractInputRefs walks the AST and extracts all input.* references.
@@ -69,16 +70,15 @@ func extractInputRefs(mod *ast.Module) []inputRef {
 			return false
 		}
 
-		// Build the path string
-		path := buildPath(ref)
-
-		// Skip dynamic references like input[x] that can't be validated statically
-		if strings.Contains(path, "[") {
+		// Build the structured path; nil means dynamic reference (has ast.Var terms).
+		segments := buildPath(ref)
+		if segments == nil {
 			return false
 		}
 
 		refs = append(refs, inputRef{
-			path:     path,
+			segments: segments,
+			rawPath:  formatPath(segments),
 			location: ref[0].Location.String(),
 		})
 
@@ -88,8 +88,11 @@ func extractInputRefs(mod *ast.Module) []inputRef {
 	return refs
 }
 
-// buildPath constructs a dotted path from an AST reference.
-func buildPath(ref ast.Ref) string {
+// buildPath constructs a structured path from an AST reference.
+// Each AST term becomes exactly one slice element, preserving
+// dotted string keys (e.g., "cert-manager.io/duration") as atomic segments.
+// Returns nil if any term (after the first) is a variable (dynamic reference).
+func buildPath(ref ast.Ref) []string {
 	var parts []string
 	for i, term := range ref {
 		if i == 0 {
@@ -102,25 +105,48 @@ func buildPath(ref ast.Ref) string {
 		case ast.String:
 			parts = append(parts, string(v))
 		case ast.Var:
-			// Dynamic reference like input[x] - include the variable
-			parts = append(parts, "["+string(v)+"]")
+			// Dynamic reference like input[x] — cannot be validated statically.
+			return nil
 		default:
-			// Other types (numbers, etc.) - convert to string
-			parts = append(parts, fmt.Sprintf("[%v]", v))
+			// Other types (numbers, etc.) — cannot be validated statically.
+			return nil
 		}
 	}
-	return strings.Join(parts, ".")
+	return parts
 }
 
-// pathExistsInSchema checks if a dotted path exists in the CUE schema.
+// formatPath reconstructs a display string from structured path segments.
+// Uses dot notation for simple keys and bracket notation for keys containing dots.
+func formatPath(segments []string) string {
+	var b strings.Builder
+	for i, seg := range segments {
+		if i == 0 {
+			b.WriteString(seg)
+			continue
+		}
+		if strings.Contains(seg, ".") {
+			b.WriteString(`["`)
+			b.WriteString(seg)
+			b.WriteString(`"]`)
+		} else {
+			b.WriteByte('.')
+			b.WriteString(seg)
+		}
+	}
+	return b.String()
+}
+
+// pathExistsInSchema checks if a structured path exists in the CUE schema.
+// segments should include "input" as the first element.
 // Uses a fallback chain: named/optional field -> pattern constraint -> CUE Allows.
-func pathExistsInSchema(path string, schema cue.Value) bool {
-	schemaPath := strings.TrimPrefix(path, "input.")
-	if schemaPath == "input" {
+func pathExistsInSchema(segments []string, schema cue.Value) bool {
+	if len(segments) <= 1 {
+		// Just "input" or empty — always valid.
 		return true
 	}
 
-	parts := strings.Split(schemaPath, ".")
+	// Skip the leading "input" segment.
+	parts := segments[1:]
 	current := schema
 
 	for _, part := range parts {

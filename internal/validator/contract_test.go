@@ -3,6 +3,7 @@
 package validator
 
 import (
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -65,6 +66,7 @@ func TestCheckContract(t *testing.T) {
 		schema         cue.Value
 		src            string
 		wantViolations int
+		wantPath       string // if set, assert first violation's Path matches
 	}{
 		{
 			name:   "valid contract - references exist",
@@ -239,6 +241,68 @@ deny contains msg if {
 }`,
 			wantViolations: 1,
 		},
+		{
+			name:   "annotation with dotted key passes validation",
+			schema: k8sSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.annotations["cert-manager.io/duration"]
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "label with dotted key passes validation",
+			schema: k8sSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.labels["app.kubernetes.io/name"]
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "multiple dotted-key annotations in one policy",
+			schema: k8sSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.annotations["cert-manager.io/duration"]
+	input.metadata.annotations["cert-manager.io/issuer"]
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "string literal bracket key without dots is not skipped as dynamic",
+			schema: k8sSchema,
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.annotations["simple-key"]
+	msg := "test"
+}`,
+			wantViolations: 0,
+		},
+		{
+			name:   "violation path uses bracket notation for dotted keys",
+			schema: compileClosedSchema(t, `#Root: { metadata?: { name?: string } }`),
+			src: `package example
+import rego.v1
+
+deny contains msg if {
+	input.metadata.annotations["cert-manager.io/duration"]
+	msg := "test"
+}`,
+			wantViolations: 1,
+			wantPath:       `input.metadata.annotations["cert-manager.io/duration"]`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -253,6 +317,55 @@ deny contains msg if {
 				assert.Contains(t, v.Error(), v.Path, "Error() should include path")
 				assert.Contains(t, v.Error(), v.Location, "Error() should include location")
 			}
+			if tt.wantPath != "" && len(violations) > 0 {
+				assert.Equal(t, tt.wantPath, violations[0].Path, "violation path should use bracket notation for dotted keys")
+			}
+		})
+	}
+}
+
+func TestFormatPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		segments []string
+		want     string
+	}{
+		{
+			name:     "simple dotted path",
+			segments: []string{"input", "metadata", "name"},
+			want:     "input.metadata.name",
+		},
+		{
+			name:     "dotted key uses bracket notation",
+			segments: []string{"input", "metadata", "annotations", "cert-manager.io/duration"},
+			want:     `input.metadata.annotations["cert-manager.io/duration"]`,
+		},
+		{
+			name:     "multiple dotted keys",
+			segments: []string{"input", "metadata", "annotations", "cert-manager.io/duration", "app.kubernetes.io/name"},
+			want:     `input.metadata.annotations["cert-manager.io/duration"]["app.kubernetes.io/name"]`,
+		},
+		{
+			name:     "single segment",
+			segments: []string{"input"},
+			want:     "input",
+		},
+		{
+			name:     "empty slice",
+			segments: []string{},
+			want:     "",
+		},
+		{
+			name:     "key without dots uses dot notation",
+			segments: []string{"input", "metadata", "annotations", "simple-key"},
+			want:     "input.metadata.annotations.simple-key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatPath(tt.segments)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -287,18 +400,22 @@ func FuzzPathExistsInSchema(f *testing.F) {
 }
 `)
 
-	f.Add("input.apiVersion")
-	f.Add("input.metadata.name")
-	f.Add("input.metadata.labels.app")
-	f.Add("input.spec.replicas")
-	f.Add("input.nonexistent")
+	// Fuzz uses a pipe-delimited string to represent path segments,
+	// since Go fuzzing only supports fixed basic-type parameters.
+	f.Add("input|apiVersion")
+	f.Add("input|metadata|name")
+	f.Add("input|metadata|labels|app")
+	f.Add("input|spec|replicas")
+	f.Add("input|nonexistent")
 	f.Add("input")
-	f.Add("input.metadata.name.too.deep")
+	f.Add("input|metadata|name|too|deep")
 	f.Add("")
-	f.Add("input....")
-	f.Add("input.metadata..name")
+	f.Add("input||||")
+	f.Add("input|metadata||name")
+	f.Add("input|metadata|annotations|cert-manager.io/duration")
 
 	f.Fuzz(func(t *testing.T, path string) {
-		_ = pathExistsInSchema(path, schema)
+		segments := strings.Split(path, "|")
+		_ = pathExistsInSchema(segments, schema)
 	})
 }
