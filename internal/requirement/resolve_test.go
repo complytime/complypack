@@ -419,3 +419,38 @@ func TestResolvePolicy_WithCatalogImports(t *testing.T) {
 		assert.Len(t, rp.ControlCatalogs[0].Controls, 1)
 	})
 }
+
+func TestResolveFromCatalog(t *testing.T) {
+	t.Run("resolves a bare catalog into a ResolvedPolicy", func(t *testing.T) {
+		cat := &gemara.ControlCatalog{
+			Metadata: gemara.Metadata{Id: "bare-cat"},
+			Controls: []gemara.Control{
+				{
+					Id:    "C-001",
+					Title: "Control One",
+					AssessmentRequirements: []gemara.AssessmentRequirement{
+						{Id: "C-001-AR1", Text: "Requirement one"},
+					},
+				},
+			},
+		}
+
+		rp, err := ResolveFromCatalog("bare-cat", cat)
+		require.NoError(t, err)
+		require.NotNil(t, rp)
+		assert.Equal(t, []string{"C-001"}, rp.ControlIDs())
+		assert.Len(t, rp.RequirementsForControl("C-001"), 1)
+		assert.Equal(t, "C-001-AR1", rp.RequirementsForControl("C-001")[0].Id)
+	})
+
+	t.Run("empty catalog returns valid empty result", func(t *testing.T) {
+		cat := &gemara.ControlCatalog{
+			Metadata: gemara.Metadata{Id: "empty-cat"},
+		}
+
+		rp, err := ResolveFromCatalog("empty-cat", cat)
+		require.NoError(t, err)
+		require.NotNil(t, rp)
+		assert.Empty(t, rp.ControlIDs())
+	})
+}

@@ -60,12 +60,9 @@ func handleGetCoverageReport(store *ResourceStore) mcp.ToolHandler {
 		input.PolicyDir = filepath.Clean(input.PolicyDir)
 
 		// Look up resolved policy
-		rp, found := store.resolved[input.Policy]
-		if !found {
-			rp, found = resolveFromCatalog(store, input.Policy)
-			if !found {
-				return nil, fmt.Errorf("policy %q not found", input.Policy)
-			}
+		rp, err := findResolvedPolicy(store, input.Policy)
+		if err != nil {
+			return nil, err
 		}
 
 		// Resolve evaluator

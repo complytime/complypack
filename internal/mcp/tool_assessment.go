@@ -6,10 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/complytime/complypack/internal/requirement"
-	"github.com/gemaraproj/go-gemara"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -42,16 +40,8 @@ func createGetAssessmentRequirementsTool() *mcp.Tool {
 	}
 }
 
-// AssessmentRequirementInfo contains assessment requirement data with parameters.
-type AssessmentRequirementInfo struct {
-	ID            string            `json:"id"`
-	ControlID     string            `json:"control_id"`
-	Text          string            `json:"text"`
-	Applicability []string          `json:"applicability,omitempty"`
-	Parameters    map[string]string `json:"parameters,omitempty"`
-}
-
-// handleGetAssessmentRequirements extracts assessment requirements from a policy or catalog.
+// handleGetAssessmentRequirements extracts assessment requirements
+// from a policy or catalog.
 func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Parse input
@@ -65,18 +55,19 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 			return nil, fmt.Errorf("invalid input: %w", err)
 		}
 
-		rp, found := store.resolved[input.CatalogName]
-		if !found {
-			rp, found = resolveFromCatalog(store, input.CatalogName)
-			if !found {
-				return nil, fmt.Errorf("policy or catalog %q not found", input.CatalogName)
-			}
+		rp, err := findResolvedPolicy(store, input.CatalogName)
+		if err != nil {
+			return nil, err
 		}
+
+		requirements := requirement.ExtractAssessmentRequirements(
+			rp, input.ControlID, input.Scope,
+		)
+
 		controlIDs := rp.ControlIDs()
 		if input.ControlID != "" {
 			controlIDs = []string{input.ControlID}
 		}
-		requirements := extractRequirements(rp, controlIDs, input.Scope)
 		summary, controls := rp.ControlSummaries(controlIDs, input.Scope)
 
 		// Build response
@@ -101,75 +92,6 @@ func handleGetAssessmentRequirements(store *ResourceStore) mcp.ToolHandler {
 			},
 		}, nil
 	}
-}
-
-// resolveFromCatalog wraps a bare catalog in a synthetic ResolvedPolicy so
-// get_assessment_requirements works with catalog names, not just policy names.
-func resolveFromCatalog(store *ResourceStore, name string) (*requirement.ResolvedPolicy, bool) {
-	art, ok := store.artifacts[name]
-	if !ok {
-		return nil, false
-	}
-	cat, ok := art.(*gemara.ControlCatalog)
-	if !ok {
-		return nil, false
-	}
-	set := &requirement.ArtifactSet{
-		Catalogs: map[string]*gemara.ControlCatalog{name: cat},
-		Policies: make(map[string]*gemara.Policy),
-		Guidance: make(map[string]*gemara.GuidanceCatalog),
-		Mappings: make(map[string]*gemara.MappingDocument),
-	}
-	syntheticPolicy := gemara.Policy{
-		Metadata: gemara.Metadata{
-			Id:                name + "-synthetic",
-			MappingReferences: []gemara.MappingReference{{Id: name}},
-		},
-		Imports: gemara.Imports{
-			Catalogs: []gemara.CatalogImport{{ReferenceId: name}},
-		},
-	}
-	rp, err := requirement.ResolvePolicy(syntheticPolicy, set)
-	if err != nil {
-		return nil, false
-	}
-	return rp, true
-}
-
-// extractRequirements extracts requirements from a resolved policy graph
-// for the given control IDs, optionally filtering by applicability scope.
-func extractRequirements(rp *requirement.ResolvedPolicy, controlIDs []string, filterScope []string) []AssessmentRequirementInfo {
-	var results []AssessmentRequirementInfo
-
-	for _, controlID := range controlIDs {
-		for _, req := range rp.RequirementsForControl(controlID) {
-			if len(filterScope) > 0 && !requirement.ApplicabilityIntersects(req.Applicability, filterScope) {
-				continue
-			}
-			info := AssessmentRequirementInfo{
-				ID:            req.Id,
-				ControlID:     controlID,
-				Text:          req.Text,
-				Applicability: req.Applicability,
-				Parameters:    make(map[string]string),
-			}
-
-			for _, param := range rp.ParametersForRequirement(req.Id) {
-				if len(param.AcceptedValues) == 1 {
-					info.Parameters[param.Label] = param.AcceptedValues[0]
-				} else if len(param.AcceptedValues) > 1 {
-					info.Parameters[param.Label] = strings.Join(param.AcceptedValues, ", ")
-				}
-				if param.Description != "" {
-					info.Parameters[param.Label+"_description"] = param.Description
-				}
-			}
-
-			results = append(results, info)
-		}
-	}
-
-	return results
 }
 
 // GetAssessmentRequirementsHandler returns the handler (for testing).

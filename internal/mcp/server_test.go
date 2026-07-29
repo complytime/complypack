@@ -130,7 +130,7 @@ func TestLoadSchemas(t *testing.T) {
 			{Platform: "kubernetes-deployment"},
 		}
 
-		schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+		schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 		require.NoError(t, err)
 		assert.Contains(t, schemaMap, "ci-github-actions")
 		assert.NotEmpty(t, schemaMap["ci-github-actions"])
@@ -147,7 +147,7 @@ func TestLoadSchemas(t *testing.T) {
 			{Platform: "unknown-platform"},
 		}
 
-		schemaMap, _, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+		schemaMap, _, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 		require.NoError(t, err)
 		assert.NotContains(t, schemaMap, "unknown-platform")
 	})
@@ -157,7 +157,7 @@ func TestLoadSchemas(t *testing.T) {
 			{Platform: "ci-github-actions", Source: "cue://cue.dev/x/githubactions@v0#Workflow"},
 		}
 
-		schemaMap, cueSchemaMap, err := loadSchemas(ctx, refs, schema.DefaultRegistry())
+		schemaMap, cueSchemaMap, err := schema.LoadFromConfig(ctx, refs, schema.DefaultRegistry())
 		require.NoError(t, err)
 		assert.Contains(t, schemaMap, "ci-github-actions")
 		assert.True(t, cueSchemaMap["ci-github-actions"].Exists())

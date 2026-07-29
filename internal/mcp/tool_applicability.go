@@ -46,12 +46,9 @@ func handleGetApplicabilityGroups(store *ResourceStore) mcp.ToolHandler {
 			return nil, fmt.Errorf("invalid input: %w", err)
 		}
 
-		rp, found := store.resolved[input.CatalogName]
-		if !found {
-			rp, found = resolveFromCatalog(store, input.CatalogName)
-			if !found {
-				return nil, fmt.Errorf("policy or catalog %q not found", input.CatalogName)
-			}
+		rp, err := findResolvedPolicy(store, input.CatalogName)
+		if err != nil {
+			return nil, err
 		}
 
 		result := requirement.CollectApplicabilityGroups(rp, input.RequirementIDs)

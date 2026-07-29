@@ -472,3 +472,33 @@ func newARFromModifier(m gemara.AssessmentRequirementModifier) gemara.Assessment
 		State:          gemara.LifecycleActive,
 	}
 }
+
+// ResolveFromCatalog wraps a bare ControlCatalog in a synthetic policy
+// and resolves it. This allows callers to use catalog-oriented functions
+// (such as ExtractAssessmentRequirements) against catalogs that are not
+// part of an explicit policy.
+func ResolveFromCatalog(
+	name string,
+	cat *gemara.ControlCatalog,
+) (*ResolvedPolicy, error) {
+	set := &ArtifactSet{
+		Catalogs: map[string]*gemara.ControlCatalog{name: cat},
+		Policies: make(map[string]*gemara.Policy),
+		Guidance: make(map[string]*gemara.GuidanceCatalog),
+		Mappings: make(map[string]*gemara.MappingDocument),
+	}
+	syntheticPolicy := gemara.Policy{
+		Metadata: gemara.Metadata{
+			Id: name + "-synthetic",
+			MappingReferences: []gemara.MappingReference{
+				{Id: name},
+			},
+		},
+		Imports: gemara.Imports{
+			Catalogs: []gemara.CatalogImport{
+				{ReferenceId: name},
+			},
+		},
+	}
+	return ResolvePolicy(syntheticPolicy, set)
+}
