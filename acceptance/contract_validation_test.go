@@ -56,6 +56,37 @@ deny contains msg if {
 		})
 	})
 
+	Describe("Dotted annotation/label keys", func() {
+		It("validates policies with dotted annotation keys against K8s Deployment schema", func() {
+			index, err := schemas.LoadIndex()
+			Expect(err).NotTo(HaveOccurred())
+
+			entry, ok := index["kubernetes-deployment"]
+			Expect(ok).To(BeTrue())
+
+			reg := schema.DefaultRegistry()
+			s, err := reg.Load(ctx, entry.Source, "kubernetes-deployment")
+			Expect(err).NotTo(HaveOccurred())
+
+			policy := `package kubernetes.deployment
+import rego.v1
+
+deny contains msg if {
+    input.metadata.annotations["cert-manager.io/duration"] != "8760h"
+    msg := "cert-manager duration must be 8760h"
+}
+
+deny contains msg if {
+    input.metadata.labels["app.kubernetes.io/name"] == ""
+    msg := "app.kubernetes.io/name label is required"
+}
+`
+			violations, err := validator.CheckContract("policy.rego", policy, s.CUE)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(violations).To(BeEmpty(), "dotted annotation/label keys should not produce false-positive violations")
+		})
+	})
+
 	Describe("Schema index resolution", func() {
 		It("loads Kubernetes Deployment schema from index and validates paths", func() {
 			index, err := schemas.LoadIndex()
