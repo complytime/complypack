@@ -1,4 +1,4 @@
-package main
+package prepack.mixed_fields
 
 import rego.v1
 

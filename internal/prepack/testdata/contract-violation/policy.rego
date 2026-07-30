@@ -1,4 +1,4 @@
-package main
+package prepack.contract_violation
 
 import rego.v1
 

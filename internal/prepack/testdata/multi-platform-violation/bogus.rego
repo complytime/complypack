@@ -1,4 +1,4 @@
-package main
+package prepack.multi_platform_violation
 
 import rego.v1
 

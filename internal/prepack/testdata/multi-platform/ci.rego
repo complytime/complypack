@@ -1,4 +1,4 @@
-package main
+package prepack.multi_platform_ci
 
 import rego.v1
 
