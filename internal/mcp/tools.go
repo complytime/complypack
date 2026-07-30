@@ -3,12 +3,14 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -323,6 +325,68 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 	}
 }
 
+// createValidateConfigTool creates the MCP tool definition for validate_config.
+func createValidateConfigTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:        "validate_config",
+		Description: "Validate a complypack.yaml configuration file against the JSON Schema and structural rules. Returns validation errors and warnings.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "Path to the complypack.yaml configuration file to validate",
+				},
+				"strict": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Treat unknown config fields as errors (default: false)",
+				},
+			},
+			"required": []interface{}{"path"},
+		},
+	}
+}
+
+// handleValidateConfig handles the validate_config MCP tool.
+func handleValidateConfig() mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var input struct {
+			Path   string `json:"path"`
+			Strict bool   `json:"strict"`
+		}
+
+		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
+			return nil, fmt.Errorf("failed to parse input: %w", err)
+		}
+
+		var warnings bytes.Buffer
+		_, err := config.LoadConfig(input.Path, input.Strict, &warnings)
+		if err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: fmt.Sprintf("validation failed: %v", err),
+					},
+				},
+				IsError: true,
+			}, nil
+		}
+
+		msg := fmt.Sprintf("%s is valid", input.Path)
+		if warnings.Len() > 0 {
+			msg += "\n" + warnings.String()
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: msg,
+				},
+			},
+		}, nil
+	}
+}
+
 // GetValidatePolicyHandler exposes handler for testing.
 func GetValidatePolicyHandler(s *Server) mcp.ToolHandler {
 	return handleValidatePolicy(s.ResourceStore)
@@ -331,4 +395,9 @@ func GetValidatePolicyHandler(s *Server) mcp.ToolHandler {
 // GetTestPolicyHandler exposes handler for testing.
 func GetTestPolicyHandler(s *Server) mcp.ToolHandler {
 	return handleTestPolicy(s.ResourceStore)
+}
+
+// GetValidateConfigHandler exposes handler for testing.
+func GetValidateConfigHandler() mcp.ToolHandler {
+	return handleValidateConfig()
 }

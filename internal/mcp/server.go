@@ -203,6 +203,9 @@ func NewServer(ctx context.Context, opts *ServerOptions) (*Server, error) {
 	coverageTool := createGetCoverageReportTool()
 	mcpServer.AddTool(coverageTool, handleGetCoverageReport(store))
 
+	validateConfigTool := createValidateConfigTool()
+	mcpServer.AddTool(validateConfigTool, handleValidateConfig())
+
 	return &Server{
 		mcp:           mcpServer,
 		ResourceStore: store,

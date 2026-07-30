@@ -28,6 +28,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(initCmd())
 	cmd.AddCommand(coverageCmd())
 	cmd.AddCommand(versionCmd())
+	cmd.AddCommand(validateCmd())
 
 	return cmd
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -423,6 +424,107 @@ func TestHandleValidatePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateValidateConfigTool(t *testing.T) {
+	tool := createValidateConfigTool()
+
+	assert.Equal(t, "validate_config", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.NotNil(t, tool.InputSchema)
+
+	schema := tool.InputSchema.(map[string]interface{})
+	props := schema["properties"].(map[string]interface{})
+
+	assert.Contains(t, props, "path")
+	assert.Contains(t, props, "strict")
+
+	required := schema["required"].([]interface{})
+	assert.Contains(t, required, "path")
+}
+
+func TestHandleValidateConfig(t *testing.T) {
+	handler := handleValidateConfig()
+
+	t.Run("valid config", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := dir + "/complypack.yaml"
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
+
+		input := map[string]interface{}{
+			"path":   cfgPath,
+			"strict": false,
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		text := result.Content[0].(*mcp.TextContent).Text
+		assert.Contains(t, text, "is valid")
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := dir + "/complypack.yaml"
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: nope\n"), 0600))
+
+		input := map[string]interface{}{
+			"path": cfgPath,
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+
+		text := result.Content[0].(*mcp.TextContent).Text
+		assert.Contains(t, text, "validation failed")
+	})
+
+	t.Run("strict mode with unknown fields", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := dir + "/complypack.yaml"
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\nbogus: true\n"), 0600))
+
+		input := map[string]interface{}{
+			"path":   cfgPath,
+			"strict": true,
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+
+		text := result.Content[0].(*mcp.TextContent).Text
+		assert.Contains(t, text, "validation failed")
+	})
 }
 
 func TestHandleTestPolicy(t *testing.T) {
