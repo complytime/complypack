@@ -1,6 +1,7 @@
 name: Container Image
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
