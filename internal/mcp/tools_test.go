@@ -437,7 +437,8 @@ func TestCreateValidateConfigTool(t *testing.T) {
 	props := schema["properties"].(map[string]interface{})
 
 	assert.Contains(t, props, "path")
-	assert.Contains(t, props, "strict")
+	assert.Contains(t, props, "unknownFields")
+	assert.Contains(t, props, "scope")
 
 	required := schema["required"].([]interface{})
 	assert.Contains(t, required, "path")
@@ -446,14 +447,13 @@ func TestCreateValidateConfigTool(t *testing.T) {
 func TestHandleValidateConfig(t *testing.T) {
 	handler := handleValidateConfig()
 
-	t.Run("valid config", func(t *testing.T) {
+	t.Run("valid config returns structured JSON", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := dir + "/complypack.yaml"
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
 
 		input := map[string]interface{}{
-			"path":   cfgPath,
-			"strict": false,
+			"path": cfgPath,
 		}
 		inputJSON, err := json.Marshal(input)
 		require.NoError(t, err)
@@ -469,11 +469,16 @@ func TestHandleValidateConfig(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
 
-		text := result.Content[0].(*mcp.TextContent).Text
-		assert.Contains(t, text, "is valid")
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		// Scopes report individually — some may fail for a minimal config
+		scopes := response["scopes"].([]interface{})
+		assert.Len(t, scopes, 3, "default validates all 3 scopes")
 	})
 
-	t.Run("invalid config", func(t *testing.T) {
+	t.Run("invalid config returns structured error", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := dir + "/complypack.yaml"
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: nope\n"), 0600))
@@ -493,20 +498,25 @@ func TestHandleValidateConfig(t *testing.T) {
 
 		result, err := handler(context.Background(), req)
 		require.NoError(t, err)
-		assert.True(t, result.IsError)
+		assert.False(t, result.IsError, "validation failures use structured JSON, not IsError")
 
-		text := result.Content[0].(*mcp.TextContent).Text
-		assert.Contains(t, text, "validation failed")
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response["valid"].(bool))
+		errors := response["errors"].([]interface{})
+		assert.NotEmpty(t, errors)
 	})
 
-	t.Run("strict mode with unknown fields", func(t *testing.T) {
+	t.Run("unknownFields error mode", func(t *testing.T) {
 		dir := t.TempDir()
 		cfgPath := dir + "/complypack.yaml"
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\nbogus: true\n"), 0600))
 
 		input := map[string]interface{}{
-			"path":   cfgPath,
-			"strict": true,
+			"path":          cfgPath,
+			"unknownFields": "error",
 		}
 		inputJSON, err := json.Marshal(input)
 		require.NoError(t, err)
@@ -520,10 +530,46 @@ func TestHandleValidateConfig(t *testing.T) {
 
 		result, err := handler(context.Background(), req)
 		require.NoError(t, err)
-		assert.True(t, result.IsError)
+		assert.False(t, result.IsError, "validation failures use structured JSON, not IsError")
 
-		text := result.Content[0].(*mcp.TextContent).Text
-		assert.Contains(t, text, "validation failed")
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response["valid"].(bool))
+	})
+
+	t.Run("scope filtering", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := dir + "/complypack.yaml"
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
+
+		input := map[string]interface{}{
+			"path":  cfgPath,
+			"scope": []string{"pack"},
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		scopes := response["scopes"].([]interface{})
+		assert.Len(t, scopes, 1, "should only validate requested scope")
+
+		scopeMap := scopes[0].(map[string]interface{})
+		assert.Equal(t, "pack", scopeMap["scope"])
 	})
 }
 

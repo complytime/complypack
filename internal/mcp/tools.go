@@ -329,7 +329,7 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 func createValidateConfigTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "validate_config",
-		Description: "Validate a complypack.yaml configuration file against the JSON Schema and structural rules. Returns validation errors and warnings.",
+		Description: "Validate a complypack.yaml configuration file against the JSON Schema, structural rules, and scope-specific requirements. Returns structured validation results.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -337,9 +337,18 @@ func createValidateConfigTool() *mcp.Tool {
 					"type":        "string",
 					"description": "Path to the complypack.yaml configuration file to validate",
 				},
-				"strict": map[string]interface{}{
-					"type":        "boolean",
-					"description": "Treat unknown config fields as errors (default: false)",
+				"unknownFields": map[string]interface{}{
+					"type":        "string",
+					"description": "How to handle unknown config fields: 'warn' (default) or 'error'",
+					"enum":        []interface{}{"warn", "error"},
+				},
+				"scope": map[string]interface{}{
+					"type":        "array",
+					"description": "Validation scopes: pack, serve, init, or all (default: all)",
+					"items": map[string]interface{}{
+						"type": "string",
+						"enum": []interface{}{"pack", "serve", "init", "all"},
+					},
 				},
 			},
 			"required": []interface{}{"path"},
@@ -348,39 +357,88 @@ func createValidateConfigTool() *mcp.Tool {
 }
 
 // handleValidateConfig handles the validate_config MCP tool.
+//
+// Security note: the path parameter is passed directly to os.ReadFile via
+// config.LoadConfig. This is safe because the MCP server uses stdio transport
+// only (see cmd/complypack/cli/mcp.go), meaning the caller is a local process
+// that already has equivalent filesystem access. If non-stdio transports are
+// added in the future, path validation should be added here.
 func handleValidateConfig() mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var input struct {
-			Path   string `json:"path"`
-			Strict bool   `json:"strict"`
+			Path          string   `json:"path"`
+			UnknownFields string   `json:"unknownFields"`
+			Scope         []string `json:"scope"`
 		}
 
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			return nil, fmt.Errorf("failed to parse input: %w", err)
 		}
 
+		strict := input.UnknownFields == "error"
+
 		var warnings bytes.Buffer
-		_, err := config.LoadConfig(input.Path, input.Strict, &warnings)
+		cfg, err := config.LoadConfig(input.Path, strict, &warnings)
 		if err != nil {
+			response := map[string]interface{}{
+				"valid":    false,
+				"errors":   []string{err.Error()},
+				"warnings": []string{},
+				"scopes":   []interface{}{},
+			}
+
+			responseJSON, jsonErr := json.Marshal(response)
+			if jsonErr != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", jsonErr)
+			}
+
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
 					&mcp.TextContent{
-						Text: fmt.Sprintf("validation failed: %v", err),
+						Text: string(responseJSON),
 					},
 				},
-				IsError: true,
 			}, nil
 		}
 
-		msg := fmt.Sprintf("%s is valid", input.Path)
+		// Run scope-specific validation
+		scopeResults := cfg.ValidateScoped(input.Scope)
+
+		scopeMaps := make([]map[string]interface{}, len(scopeResults))
+		allValid := true
+		for i, r := range scopeResults {
+			scopeMaps[i] = map[string]interface{}{
+				"scope": r.Scope,
+				"valid": r.Valid,
+				"error": r.Error,
+			}
+			if !r.Valid {
+				allValid = false
+			}
+		}
+
+		// Collect warnings as a string slice
+		var warningList []string
 		if warnings.Len() > 0 {
-			msg += "\n" + warnings.String()
+			warningList = append(warningList, warnings.String())
+		}
+
+		response := map[string]interface{}{
+			"valid":    allValid,
+			"errors":   []string{},
+			"warnings": warningList,
+			"scopes":   scopeMaps,
+		}
+
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response: %w", err)
 		}
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: msg,
+					Text: string(responseJSON),
 				},
 			},
 		}, nil
@@ -395,9 +453,4 @@ func GetValidatePolicyHandler(s *Server) mcp.ToolHandler {
 // GetTestPolicyHandler exposes handler for testing.
 func GetTestPolicyHandler(s *Server) mcp.ToolHandler {
 	return handleTestPolicy(s.ResourceStore)
-}
-
-// GetValidateConfigHandler exposes handler for testing.
-func GetValidateConfigHandler() mcp.ToolHandler {
-	return handleValidateConfig()
 }
