@@ -7,6 +7,7 @@ project_name: complypack
 
 before:
   hooks:
+    - go mod verify
     - go mod vendor
 
 builds:

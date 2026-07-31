@@ -67,13 +67,15 @@ jobs:
     name: Trigger Container Build
     needs: [preflight, release]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       actions: write
     steps:
       - name: Trigger container workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_REF: ${{ needs.preflight.outputs.tag }}
         run: |
           gh workflow run container.yml \
             --repo "${{ github.repository }}" \
-            --ref "${{ needs.preflight.outputs.tag }}"
+            --ref "$TAG_REF"
