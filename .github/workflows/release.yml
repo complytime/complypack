@@ -1,46 +1,81 @@
 ---
+# Release Pipeline
+# =================
+# Validates preflight conditions (semver, CI, unreleased commits),
+# creates an annotated tag, then builds release artifacts via GoReleaser
+# with cosign signatures and SBOMs.
+#
+# Trigger: workflow_dispatch with a tag input (e.g., v1.2.3).
+# Container images are published separately by container.yml, triggered
+# via workflow_dispatch from the container job below (GITHUB_TOKEN tags
+# do not fire other workflows). Long-term fix: complytime/org-infra#485.
+
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
+      skip_semver_check:
+        description: "Skip semver ordering verification"
+        type: boolean
+        default: false
+      skip_ci_checks:
+        description: "Skip CI check verification on HEAD"
+        type: boolean
+        default: false
+      skip_unreleased_check:
+        description: "Skip unreleased commits verification"
+        type: boolean
+        default: false
 
 permissions: {}
 
-jobs:
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
 
+jobs:
+  preflight:
+    name: Preflight
+    uses: complytime/org-infra/.github/workflows/reusable_release_preflight.yml@0c784711926c9864f027ec565fd7c06a382d80f8 # v0.7.1
+    with:
+      tag: ${{ inputs.tag }}
+      ci_checks: '["Test (1.26)", "Module Sync Check", "Standardized CI / Run linters"]'
+      skip_semver_check: ${{ inputs.skip_semver_check }}
+      skip_ci_checks: ${{ inputs.skip_ci_checks }}
+      skip_unreleased_check: ${{ inputs.skip_unreleased_check }}
     permissions:
       contents: write
+      checks: read
 
+  release:
+    name: Release
+    needs: preflight
+    if: needs.preflight.outputs.tag != ''
+    uses: complytime/org-infra/.github/workflows/reusable_release_goreleaser.yml@0c784711926c9864f027ec565fd7c06a382d80f8 # v0.7.1
+    with:
+      tag: ${{ needs.preflight.outputs.tag }}
+    permissions:
+      contents: write
+      id-token: write
+
+  container:
+    name: Trigger Container Build
+    needs: [preflight, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: '1.26'
-          cache: false
-
-      - name: Run tests
-        run: |
-          go test -race -count=1 ./...
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          echo "## Changes" > CHANGELOG.md
-          git log "$(git describe --tags --abbrev=0 HEAD^)"..HEAD --pretty=format:"- %s" >> CHANGELOG.md
-
-      - name: Create Release
-        run: gh release create "${TAG_NAME}" --notes-file CHANGELOG.md --verify-tag
+      - name: Trigger container workflow
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_REF: ${{ needs.preflight.outputs.tag }}
+        run: |
+          gh workflow run container.yml \
+            --repo "${{ github.repository }}" \
+            --ref "$TAG_REF"
