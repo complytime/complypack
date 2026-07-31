@@ -833,8 +833,14 @@ func TestValidateScoped_AllScopes(t *testing.T) {
 	results := cfg.ValidateScoped([]string{"all"})
 	require.Len(t, results, 3)
 	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid, "pack should fail: missing id")
+	assert.Contains(t, results[0].Error, "id")
 	assert.Equal(t, "serve", results[1].Scope)
+	assert.False(t, results[1].Valid, "serve should fail: missing gemara.sources")
+	assert.Contains(t, results[1].Error, "gemara.sources")
 	assert.Equal(t, "init", results[2].Scope)
+	assert.False(t, results[2].Valid, "init should fail: missing id")
+	assert.Contains(t, results[2].Error, "id")
 }
 
 func TestValidateScoped_EmptyScopes(t *testing.T) {
@@ -844,8 +850,11 @@ func TestValidateScoped_EmptyScopes(t *testing.T) {
 	results := cfg.ValidateScoped(nil)
 	require.Len(t, results, 3)
 	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid, "pack should fail: missing id")
 	assert.Equal(t, "serve", results[1].Scope)
+	assert.False(t, results[1].Valid, "serve should fail: missing gemara.sources")
 	assert.Equal(t, "init", results[2].Scope)
+	assert.False(t, results[2].Valid, "init should fail: missing id")
 }
 
 func TestValidateScoped_PackOnly(t *testing.T) {

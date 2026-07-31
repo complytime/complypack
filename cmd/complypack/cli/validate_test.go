@@ -204,3 +204,27 @@ func TestValidateEndToEnd_ScopePackMissingFields(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, stdout.String(), "pack: FAIL")
 }
+
+func TestValidateEndToEnd_InvalidScope(t *testing.T) {
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"config", "validate", "--scope", "bogus", "nonexistent.yaml"})
+
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid --scope value")
+}
+
+func TestValidateEndToEnd_InvalidUnknownFields(t *testing.T) {
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"config", "validate", "--unknown-fields", "bogus", "nonexistent.yaml"})
+
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid --unknown-fields value")
+}

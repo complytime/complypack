@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -449,7 +450,7 @@ func TestHandleValidateConfig(t *testing.T) {
 
 	t.Run("valid config returns structured JSON", func(t *testing.T) {
 		dir := t.TempDir()
-		cfgPath := dir + "/complypack.yaml"
+		cfgPath := filepath.Join(dir, "complypack.yaml")
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
 
 		input := map[string]interface{}{
@@ -473,14 +474,18 @@ func TestHandleValidateConfig(t *testing.T) {
 		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
 		require.NoError(t, err)
 
-		// Scopes report individually — some may fail for a minimal config
+		// Minimal config: schema validation passes but scope checks may fail
+		assert.False(t, response["valid"].(bool), "minimal config fails scope validation")
+		errors := response["errors"].([]interface{})
+		assert.Empty(t, errors, "no schema-level errors")
+
 		scopes := response["scopes"].([]interface{})
 		assert.Len(t, scopes, 3, "default validates all 3 scopes")
 	})
 
 	t.Run("invalid config returns structured error", func(t *testing.T) {
 		dir := t.TempDir()
-		cfgPath := dir + "/complypack.yaml"
+		cfgPath := filepath.Join(dir, "complypack.yaml")
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: nope\n"), 0600))
 
 		input := map[string]interface{}{
@@ -507,11 +512,12 @@ func TestHandleValidateConfig(t *testing.T) {
 		assert.False(t, response["valid"].(bool))
 		errors := response["errors"].([]interface{})
 		assert.NotEmpty(t, errors)
+		assert.Contains(t, errors[0].(string), "schema validation", "error should mention schema validation")
 	})
 
 	t.Run("unknownFields error mode", func(t *testing.T) {
 		dir := t.TempDir()
-		cfgPath := dir + "/complypack.yaml"
+		cfgPath := filepath.Join(dir, "complypack.yaml")
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\nbogus: true\n"), 0600))
 
 		input := map[string]interface{}{
@@ -537,11 +543,13 @@ func TestHandleValidateConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.False(t, response["valid"].(bool))
+		errors := response["errors"].([]interface{})
+		assert.NotEmpty(t, errors, "strict mode should produce errors for unknown fields")
 	})
 
 	t.Run("scope filtering", func(t *testing.T) {
 		dir := t.TempDir()
-		cfgPath := dir + "/complypack.yaml"
+		cfgPath := filepath.Join(dir, "complypack.yaml")
 		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
 
 		input := map[string]interface{}{
@@ -570,6 +578,7 @@ func TestHandleValidateConfig(t *testing.T) {
 
 		scopeMap := scopes[0].(map[string]interface{})
 		assert.Equal(t, "pack", scopeMap["scope"])
+		assert.False(t, scopeMap["valid"].(bool), "pack scope should fail: missing id")
 	})
 }
 

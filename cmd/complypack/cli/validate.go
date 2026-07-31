@@ -13,6 +13,7 @@ import (
 // validScopes lists the accepted values for --scope.
 var validScopes = []string{"pack", "serve", "init", "all"}
 
+// configValidateCmd creates the "config validate" subcommand.
 func configValidateCmd() *cobra.Command {
 	var unknownFields string
 	var scopes []string

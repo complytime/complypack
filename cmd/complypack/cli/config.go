@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// configCmd creates the "config" command group.
 func configCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
