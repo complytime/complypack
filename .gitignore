@@ -57,6 +57,7 @@ openspec/
 .uf/replicator/*.lock
 .uf/muti-mind/artifacts/
 .uf/mx-f/data/
+.uf/feedback/
 # Legacy tool directories (renamed to .uf/ in Spec 025)
 .dewey/
 .hive/

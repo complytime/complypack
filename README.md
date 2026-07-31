@@ -68,7 +68,7 @@ schemas:
   - platform: ci-github-actions
 ```
 
-Configuration files are validated against a [JSON Schema](schemas/jsonschema/complypack.schema.json). The `pack` command uses strict validation — unknown fields cause an error. The `mcp serve` command uses lenient validation — unknown fields produce a warning on stderr but do not prevent startup. Run `complypack init --strict` to verify your config has no unrecognized fields.
+Configuration files are validated against a [JSON Schema](schemas/jsonschema/complypack.schema.json). The `pack` command uses strict validation — unknown fields cause an error. The `mcp serve` command uses lenient validation — unknown fields produce a warning on stderr but do not prevent startup. Use `complypack config validate` to check your config before running any command.
 
 See `complypack.example.yaml` for full configuration options.
 
@@ -120,6 +120,30 @@ scripts), provide `--schema` and `--source` flags.
 - `--strict`              Treat unknown config fields as errors
 - `--allow-credentials`  Allow source URIs with embedded credentials (not recommended)
 
+### Validate configuration
+
+Validate a `complypack.yaml` file against the JSON Schema, structural rules, and scope-specific requirements:
+
+```bash
+# Validate in current directory (all scopes)
+complypack config validate
+
+# Validate a specific file
+complypack config validate path/to/complypack.yaml
+
+# Treat unknown fields as errors
+complypack config validate --unknown-fields=error
+
+# Validate for a specific operation
+complypack config validate --scope pack
+complypack config validate --scope serve
+complypack config validate --scope pack --scope serve
+```
+
+**Flags:**
+- `--unknown-fields`  How to handle unknown config fields: `warn` (default) or `error`
+- `--scope`           Validation scope: `pack`, `serve`, `init`, or `all` (default: `all`, repeatable)
+
 ### Pack
 
 Pack a directory of policy content into a ComplyPack OCI artifact and push to a registry:
@@ -161,6 +185,7 @@ complypack mcp serve --config /path/to/complypack.yaml
 | `get_applicability_groups`     | Get group definitions and requirement memberships         |
 | `get_automation_triage`        | Classify assessment plans as Automated or Manual          |
 | `analyze_parameter_delta`      | Compare L3 parameter values against L1/L2 requirements    |
+| `validate_config`              | Validate complypack.yaml with scope-aware checks          |
 
 #### Tested AI Coding Tools
 
