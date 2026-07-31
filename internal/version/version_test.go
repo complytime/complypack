@@ -4,8 +4,6 @@ package version
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestModuleVersion_ReturnsNonEmpty(t *testing.T) {
@@ -24,8 +22,16 @@ func TestModuleVersion_FallbackIsDevel(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	info := Get()
-	assert.Equal(t, "dev", info.Version)
-	assert.Equal(t, "unknown", info.Commit)
-	assert.Equal(t, "unknown", info.GitTreeState)
-	assert.Equal(t, "unknown", info.BuildDate)
+	if info.Version != "dev" {
+		t.Errorf("Version = %q, want %q", info.Version, "dev")
+	}
+	if info.Commit != "unknown" {
+		t.Errorf("Commit = %q, want %q", info.Commit, "unknown")
+	}
+	if info.GitTreeState != "unknown" {
+		t.Errorf("GitTreeState = %q, want %q", info.GitTreeState, "unknown")
+	}
+	if info.BuildDate != "unknown" {
+		t.Errorf("BuildDate = %q, want %q", info.BuildDate, "unknown")
+	}
 }
