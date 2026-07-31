@@ -34,10 +34,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: release-${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
   preflight:
     name: Preflight
