@@ -37,17 +37,18 @@ func versionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			w := cmd.OutOrStdout()
 			v := version.Get()
 			if jsonOutput {
 				out, err := json.MarshalIndent(v, "", "  ")
 				if err != nil {
 					return err
 				}
-				fmt.Println(string(out))
+				fmt.Fprintln(w, string(out))
 				return nil
 			}
-			fmt.Printf("complypack %s (commit: %s, built: %s)\n", v.Version, v.Commit, v.BuildDate)
+			fmt.Fprintf(w, "complypack %s (commit: %s, built: %s)\n", v.Version, v.Commit, v.BuildDate)
 			return nil
 		},
 	}
