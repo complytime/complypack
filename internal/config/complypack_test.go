@@ -825,3 +825,63 @@ func TestBuildConfig_EmptyOptionalFields(t *testing.T) {
 	assert.Nil(t, cfg.Gemara.Sources)
 	assert.Nil(t, cfg.Schemas)
 }
+
+func TestValidateScoped_AllScopes(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScoped([]string{"all"})
+	require.Len(t, results, 3)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.Equal(t, "serve", results[1].Scope)
+	assert.Equal(t, "init", results[2].Scope)
+}
+
+func TestValidateScoped_EmptyScopes(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScoped(nil)
+	require.Len(t, results, 3)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.Equal(t, "serve", results[1].Scope)
+	assert.Equal(t, "init", results[2].Scope)
+}
+
+func TestValidateScoped_PackOnly(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScoped([]string{"pack"})
+	require.Len(t, results, 1)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid)
+	assert.Contains(t, results[0].Error, "id")
+}
+
+func TestValidateScoped_ServeOnly(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScoped([]string{"serve"})
+	require.Len(t, results, 1)
+	assert.Equal(t, "serve", results[0].Scope)
+	assert.False(t, results[0].Valid)
+	assert.Contains(t, results[0].Error, "gemara.sources")
+}
+
+func TestValidateScoped_FullConfig(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		ID:          "io.complytime.test",
+		EvaluatorID: "opa",
+		Version:     "1.0.0",
+		Schemas:     []SchemaRef{{Platform: "kubernetes"}},
+		Gemara:      GemaraConfig{Sources: []GemaraSourceEntry{{Source: "catalogs/controls.yaml"}}},
+	}
+	results := cfg.ValidateScoped([]string{"all"})
+	require.Len(t, results, 3)
+	for _, r := range results {
+		assert.True(t, r.Valid, "scope %s should be valid", r.Scope)
+		assert.Empty(t, r.Error, "scope %s should have no error", r.Scope)
+	}
+}

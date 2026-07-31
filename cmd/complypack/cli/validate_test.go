@@ -16,31 +16,44 @@ func TestValidateCommand(t *testing.T) {
 	root := New()
 
 	t.Run("command exists", func(t *testing.T) {
-		cmd, _, err := root.Find([]string{"validate"})
+		cmd, _, err := root.Find([]string{"config", "validate"})
 		require.NoError(t, err)
 		assert.Equal(t, "validate", cmd.Name())
 		assert.NotEmpty(t, cmd.Short, "validate command should have a short description")
 	})
 
 	t.Run("has flags", func(t *testing.T) {
-		cmd, _, err := root.Find([]string{"validate"})
+		cmd, _, err := root.Find([]string{"config", "validate"})
 		require.NoError(t, err)
 
 		flags := cmd.Flags()
-		assert.NotNil(t, flags.Lookup("strict"), "should have --strict flag")
+		assert.NotNil(t, flags.Lookup("unknown-fields"), "should have --unknown-fields flag")
+		assert.NotNil(t, flags.Lookup("scope"), "should have --scope flag")
 	})
 
 	t.Run("flag defaults", func(t *testing.T) {
-		cmd, _, err := root.Find([]string{"validate"})
+		cmd, _, err := root.Find([]string{"config", "validate"})
 		require.NoError(t, err)
 
 		flags := cmd.Flags()
-		assert.Equal(t, "false", flags.Lookup("strict").DefValue)
+		assert.Equal(t, "warn", flags.Lookup("unknown-fields").DefValue)
+		assert.Equal(t, "[]", flags.Lookup("scope").DefValue)
 	})
 }
 
 // validConfigYAML is a minimal valid complypack.yaml for testing.
 const validConfigYAML = `version: 0.1.0
+schemas:
+  - platform: kubernetes-deployment
+`
+
+// fullConfigYAML has all fields needed for every scope.
+const fullConfigYAML = `id: io.test.example
+evaluator-id: opa
+version: 0.1.0
+gemara:
+  sources:
+    - source: catalogs/controls.yaml
 schemas:
   - platform: kubernetes-deployment
 `
@@ -51,8 +64,13 @@ schemas:
   - platform: kubernetes-deployment
 `
 
-// unknownFieldConfigYAML has a valid config plus an unknown field.
-const unknownFieldConfigYAML = `version: 0.1.0
+// unknownFieldConfigYAML has a full valid config plus an unknown field.
+const unknownFieldConfigYAML = `id: io.test.example
+evaluator-id: opa
+version: 0.1.0
+gemara:
+  sources:
+    - source: catalogs/controls.yaml
 schemas:
   - platform: kubernetes-deployment
 bogus-field: unexpected
@@ -67,13 +85,13 @@ func writeTestConfig(t *testing.T, dir, content string) string {
 
 func TestValidateEndToEnd_ValidConfig(t *testing.T) {
 	dir := t.TempDir()
-	path := writeTestConfig(t, dir, validConfigYAML)
+	path := writeTestConfig(t, dir, fullConfigYAML)
 
 	root := New()
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate", path})
+	root.SetArgs([]string{"config", "validate", path})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -88,7 +106,7 @@ func TestValidateEndToEnd_InvalidConfig(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate", path})
+	root.SetArgs([]string{"config", "validate", path})
 
 	err := root.Execute()
 	require.Error(t, err)
@@ -100,7 +118,7 @@ func TestValidateEndToEnd_FileNotFound(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate", "nonexistent.yaml"})
+	root.SetArgs([]string{"config", "validate", "nonexistent.yaml"})
 
 	err := root.Execute()
 	require.Error(t, err)
@@ -115,7 +133,7 @@ func TestValidateEndToEnd_UnknownFieldsLenient(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate", path})
+	root.SetArgs([]string{"config", "validate", path})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -123,7 +141,7 @@ func TestValidateEndToEnd_UnknownFieldsLenient(t *testing.T) {
 	assert.Contains(t, stderr.String(), "WARNING")
 }
 
-func TestValidateEndToEnd_UnknownFieldsStrict(t *testing.T) {
+func TestValidateEndToEnd_UnknownFieldsError(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, unknownFieldConfigYAML)
 
@@ -131,7 +149,7 @@ func TestValidateEndToEnd_UnknownFieldsStrict(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate", "--strict", path})
+	root.SetArgs([]string{"config", "validate", "--unknown-fields=error", path})
 
 	err := root.Execute()
 	require.Error(t, err)
@@ -140,21 +158,49 @@ func TestValidateEndToEnd_UnknownFieldsStrict(t *testing.T) {
 
 func TestValidateEndToEnd_DefaultPath(t *testing.T) {
 	dir := t.TempDir()
-	writeTestConfig(t, dir, validConfigYAML)
+	writeTestConfig(t, dir, fullConfigYAML)
 
-	// Change to the temp directory so default path resolves
-	orig, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { _ = os.Chdir(orig) })
+	t.Chdir(dir)
 
 	root := New()
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"validate"})
+	root.SetArgs([]string{"config", "validate"})
 
-	err = root.Execute()
+	err := root.Execute()
 	require.NoError(t, err)
 	assert.Contains(t, stdout.String(), "is valid")
+}
+
+func TestValidateEndToEnd_ScopePack(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestConfig(t, dir, fullConfigYAML)
+
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"config", "validate", "--scope", "pack", path})
+
+	err := root.Execute()
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "pack: ok")
+	assert.Contains(t, stdout.String(), "is valid")
+}
+
+func TestValidateEndToEnd_ScopePackMissingFields(t *testing.T) {
+	dir := t.TempDir()
+	// validConfigYAML lacks id and evaluator-id, which pack scope requires
+	path := writeTestConfig(t, dir, validConfigYAML)
+
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"config", "validate", "--scope", "pack", path})
+
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, stdout.String(), "pack: FAIL")
 }
