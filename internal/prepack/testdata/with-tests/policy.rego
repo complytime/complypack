@@ -1,4 +1,4 @@
-package main
+package prepack.with_tests
 
 import rego.v1
 
