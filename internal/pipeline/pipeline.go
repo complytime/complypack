@@ -4,9 +4,11 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/internal/requirement"
 	"github.com/complytime/complypack/internal/source"
 )
@@ -31,22 +33,26 @@ func LoadAndResolve(
 	cacheDir string,
 ) (*LoadResult, error) {
 	loaded := requirement.NewArtifactSet()
+	var loadErrs []error
 	for _, entry := range sources {
+		name := SanitizeSourceID(entry.Source)
 		src, err := source.LoadArtifacts(
 			ctx, entry.Source, entry.PlainHTTP, cacheDir,
 		)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"failed to load artifacts from %s: %w",
-				entry.Source, err,
-			)
+			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
+			continue
 		}
 		if err := loaded.Merge(src); err != nil {
-			return nil, fmt.Errorf(
-				"failed to merge artifacts from %s: %w",
-				entry.Source, err,
-			)
+			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
+			continue
 		}
+	}
+	// Report all load/merge failures at once so every unreachable or
+	// malformed source is named in a single joined error. A load failure
+	// aborts the whole operation: no partial result is returned.
+	if len(loadErrs) > 0 {
+		return nil, errors.Join(loadErrs...)
 	}
 
 	resolved := make(map[string]*requirement.ResolvedPolicy)
@@ -65,4 +71,16 @@ func LoadAndResolve(
 		Artifacts: loaded,
 		Resolved:  resolved,
 	}, nil
+}
+
+// SanitizeSourceID strips any embedded credentials (userinfo) from a source
+// identifier so that error messages naming a failed source never leak
+// registry usernames or passwords declared in the source string
+// (CWE-209: Information Exposure Through an Error Message).
+//
+// The path/host portion is preserved so the operator can still identify
+// which source failed. Sources without recognizable userinfo (plain file
+// paths, credential-free OCI references) are returned unchanged.
+func SanitizeSourceID(source string) string {
+	return registry.RedactCredentials(source)
 }
