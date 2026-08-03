@@ -252,6 +252,12 @@ func (c *ComplyPackConfig) ValidateForInit() error {
 	return nil
 }
 
+// ValidScopes lists the accepted values for the --scope flag.
+var ValidScopes = []string{"pack", "serve", "init", "all"}
+
+// ValidUnknownFields lists the accepted values for the --unknown-fields flag.
+var ValidUnknownFields = []string{"warn", "error"}
+
 // ScopeResult holds the validation result for a single scope.
 type ScopeResult struct {
 	Scope string
@@ -259,12 +265,12 @@ type ScopeResult struct {
 	Error string
 }
 
-// ValidateScoped validates a config against the specified scopes.
+// ValidateScopes validates a config against the specified scopes.
 // Valid scopes are "pack", "serve", and "init". If scopes is empty or
 // contains "all", all three scopes are checked. Returns one result per
 // scope. The config's basic validation (schema + structure) is assumed
 // to have already passed via LoadConfig.
-func (c *ComplyPackConfig) ValidateScoped(scopes []string) []ScopeResult {
+func (c *ComplyPackConfig) ValidateScopes(scopes []string) []ScopeResult {
 	type scopeEntry struct {
 		name     string
 		validate func() error

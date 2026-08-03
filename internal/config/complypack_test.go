@@ -826,11 +826,11 @@ func TestBuildConfig_EmptyOptionalFields(t *testing.T) {
 	assert.Nil(t, cfg.Schemas)
 }
 
-func TestValidateScoped_AllScopes(t *testing.T) {
+func TestValidateScopes_AllScopes(t *testing.T) {
 	cfg := &ComplyPackConfig{
 		Version: "1.0.0",
 	}
-	results := cfg.ValidateScoped([]string{"all"})
+	results := cfg.ValidateScopes([]string{"all"})
 	require.Len(t, results, 3)
 	assert.Equal(t, "pack", results[0].Scope)
 	assert.False(t, results[0].Valid, "pack should fail: missing id")
@@ -843,11 +843,11 @@ func TestValidateScoped_AllScopes(t *testing.T) {
 	assert.Contains(t, results[2].Error, "id")
 }
 
-func TestValidateScoped_EmptyScopes(t *testing.T) {
+func TestValidateScopes_EmptyScopes(t *testing.T) {
 	cfg := &ComplyPackConfig{
 		Version: "1.0.0",
 	}
-	results := cfg.ValidateScoped(nil)
+	results := cfg.ValidateScopes(nil)
 	require.Len(t, results, 3)
 	assert.Equal(t, "pack", results[0].Scope)
 	assert.False(t, results[0].Valid, "pack should fail: missing id")
@@ -857,29 +857,29 @@ func TestValidateScoped_EmptyScopes(t *testing.T) {
 	assert.False(t, results[2].Valid, "init should fail: missing id")
 }
 
-func TestValidateScoped_PackOnly(t *testing.T) {
+func TestValidateScopes_PackOnly(t *testing.T) {
 	cfg := &ComplyPackConfig{
 		Version: "1.0.0",
 	}
-	results := cfg.ValidateScoped([]string{"pack"})
+	results := cfg.ValidateScopes([]string{"pack"})
 	require.Len(t, results, 1)
 	assert.Equal(t, "pack", results[0].Scope)
 	assert.False(t, results[0].Valid)
 	assert.Contains(t, results[0].Error, "id")
 }
 
-func TestValidateScoped_ServeOnly(t *testing.T) {
+func TestValidateScopes_ServeOnly(t *testing.T) {
 	cfg := &ComplyPackConfig{
 		Version: "1.0.0",
 	}
-	results := cfg.ValidateScoped([]string{"serve"})
+	results := cfg.ValidateScopes([]string{"serve"})
 	require.Len(t, results, 1)
 	assert.Equal(t, "serve", results[0].Scope)
 	assert.False(t, results[0].Valid)
 	assert.Contains(t, results[0].Error, "gemara.sources")
 }
 
-func TestValidateScoped_FullConfig(t *testing.T) {
+func TestValidateScopes_FullConfig(t *testing.T) {
 	cfg := &ComplyPackConfig{
 		ID:          "io.complytime.test",
 		EvaluatorID: "opa",
@@ -887,7 +887,7 @@ func TestValidateScoped_FullConfig(t *testing.T) {
 		Schemas:     []SchemaRef{{Platform: "kubernetes"}},
 		Gemara:      GemaraConfig{Sources: []GemaraSourceEntry{{Source: "catalogs/controls.yaml"}}},
 	}
-	results := cfg.ValidateScoped([]string{"all"})
+	results := cfg.ValidateScopes([]string{"all"})
 	require.Len(t, results, 3)
 	for _, r := range results {
 		assert.True(t, r.Valid, "scope %s should be valid", r.Scope)

@@ -214,7 +214,7 @@ func TestValidateEndToEnd_InvalidScope(t *testing.T) {
 
 	err := root.Execute()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid --scope value")
+	assert.Contains(t, err.Error(), "invalid --scope values")
 }
 
 func TestValidateEndToEnd_InvalidUnknownFields(t *testing.T) {

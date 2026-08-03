@@ -340,14 +340,14 @@ func createValidateConfigTool() *mcp.Tool {
 				"unknownFields": map[string]interface{}{
 					"type":        "string",
 					"description": "How to handle unknown config fields: 'warn' (default) or 'error'",
-					"enum":        []interface{}{"warn", "error"},
+					"enum":        toInterfaceSlice(config.ValidUnknownFields),
 				},
 				"scope": map[string]interface{}{
 					"type":        "array",
 					"description": "Validation scopes: pack, serve, init, or all (default: all)",
 					"items": map[string]interface{}{
 						"type": "string",
-						"enum": []interface{}{"pack", "serve", "init", "all"},
+						"enum": toInterfaceSlice(config.ValidScopes),
 					},
 				},
 			},
@@ -402,7 +402,7 @@ func handleValidateConfig() mcp.ToolHandler {
 		}
 
 		// Run scope-specific validation
-		scopeResults := cfg.ValidateScoped(input.Scope)
+		scopeResults := cfg.ValidateScopes(input.Scope)
 
 		scopeMaps := make([]map[string]interface{}, len(scopeResults))
 		allValid := true
@@ -443,6 +443,15 @@ func handleValidateConfig() mcp.ToolHandler {
 			},
 		}, nil
 	}
+}
+
+// toInterfaceSlice converts a string slice to an interface slice for JSON schema definitions.
+func toInterfaceSlice(ss []string) []interface{} {
+	out := make([]interface{}, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
 }
 
 // GetValidatePolicyHandler exposes handler for testing.

@@ -10,9 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// validScopes lists the accepted values for --scope.
-var validScopes = []string{"pack", "serve", "init", "all"}
-
 // configValidateCmd creates the "config validate" subcommand.
 func configValidateCmd() *cobra.Command {
 	var unknownFields string
@@ -49,23 +46,35 @@ Examples:
 				path = args[0]
 			}
 
-			// Validate --unknown-fields value
-			if unknownFields != "warn" && unknownFields != "error" {
-				return fmt.Errorf("invalid --unknown-fields value %q: must be \"warn\" or \"error\"", unknownFields)
+			// Validate all flag values and report all errors at once
+			var errs []string
+
+			validUF := make(map[string]bool, len(config.ValidUnknownFields))
+			for _, v := range config.ValidUnknownFields {
+				validUF[v] = true
+			}
+			if !validUF[unknownFields] {
+				errs = append(errs, fmt.Sprintf("invalid --unknown-fields value %q: must be one of %s",
+					unknownFields, strings.Join(config.ValidUnknownFields, ", ")))
 			}
 
-			// Validate --scope values
+			validS := make(map[string]bool, len(config.ValidScopes))
+			for _, v := range config.ValidScopes {
+				validS[v] = true
+			}
+			var invalidScopes []string
 			for _, s := range scopes {
-				valid := false
-				for _, vs := range validScopes {
-					if s == vs {
-						valid = true
-						break
-					}
+				if !validS[s] {
+					invalidScopes = append(invalidScopes, s)
 				}
-				if !valid {
-					return fmt.Errorf("invalid --scope value %q: must be one of %s", s, strings.Join(validScopes, ", "))
-				}
+			}
+			if len(invalidScopes) > 0 {
+				errs = append(errs, fmt.Sprintf("invalid --scope values %v: must be one of %s",
+					invalidScopes, strings.Join(config.ValidScopes, ", ")))
+			}
+
+			if len(errs) > 0 {
+				return fmt.Errorf("%s", strings.Join(errs, "; "))
 			}
 
 			strict := unknownFields == "error"
@@ -76,7 +85,7 @@ Examples:
 			}
 
 			// Run scope-specific validation
-			results := cfg.ValidateScoped(scopes)
+			results := cfg.ValidateScopes(scopes)
 
 			allValid := true
 			for _, r := range results {
@@ -97,8 +106,10 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&unknownFields, "unknown-fields", "warn", "How to handle unknown config fields: warn or error")
-	cmd.Flags().StringSliceVar(&scopes, "scope", nil, "Validation scope: pack, serve, init, or all (default: all)")
+	cmd.Flags().StringVar(&unknownFields, "unknown-fields", "warn",
+		fmt.Sprintf("How to handle unknown config fields: %s", strings.Join(config.ValidUnknownFields, " or ")))
+	cmd.Flags().StringSliceVar(&scopes, "scope", nil,
+		fmt.Sprintf("Validation scope: %s (default: all)", strings.Join(config.ValidScopes, ", ")))
 
 	return cmd
 }
