@@ -122,7 +122,7 @@ schemas:
 			server, err := mcp.NewServer(ctx, opts)
 			Expect(err).To(HaveOccurred())
 			Expect(server).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to load artifacts"))
+			Expect(err.Error()).To(ContainSubstring("source /nonexistent/catalog.yaml"))
 		})
 
 		It("should fail fast when configured schema source cannot be loaded", func() {

@@ -10,13 +10,14 @@ import (
 	"log/slog"
 	"os"
 	"sort"
-
+	"time"
 	"cuelang.org/go/cue"
-
+	"github.com/complytime/complypack/internal/cache"
 	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/coverage"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/packer"
+	"github.com/complytime/complypack/internal/pipeline"
 	"github.com/complytime/complypack/internal/prepack"
 	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/internal/schema"
@@ -27,12 +28,18 @@ import (
 	"oras.land/oras-go/v2/content/memory"
 )
 
+// packResolveTimeout bounds the aggregate resolution of all declared Gemara
+// sources during pack so that a large, slow, or hostile source cannot hang
+// the command indefinitely (CWE-400). Exceeding it fails the pack closed.
+const packResolveTimeout = 5 * time.Minute
+
 func packCmd() *cobra.Command {
 	var (
 		configPath     string
 		plainHTTP      bool
 		skipValidation bool
 		skipTests      bool
+		cacheDir       string
 	)
 
 	cmd := &cobra.Command{
@@ -41,9 +48,11 @@ func packCmd() *cobra.Command {
 		Long: `Pack a directory of policy content into a ComplyPack OCI artifact
 and push it to an OCI registry.
 
-Reads evaluator-id, version, and gemara source from complypack.yaml.
-The content directory is archived as a tar.gz and stored as the
-artifact's opaque content layer.
+Reads evaluator-id, version, and gemara sources from complypack.yaml.
+The declared gemara sources are resolved and the resulting policy
+provenance (policy IDs and the Gemara artifacts they import) is
+recorded in the artifact's config blob. The content directory is
+archived as a tar.gz and stored as the artifact's opaque content layer.
 
 By default, policies are validated before packing:
   1. Syntax checking
@@ -79,11 +88,20 @@ Examples:
 				}
 			}
 
+			// Resolve Gemara sources and record their provenance so a
+			// consumer can tell which policies this pack implements.
+			// Fail-closed: an unresolvable source aborts the pack.
+			provenance, err := resolveProvenance(ctx, cfg, cacheDir)
+			if err != nil {
+				return err
+			}
+
 			// Build complypack config from complypack.yaml
 			packCfg := complypack.Config{
 				ID:          cfg.ID,
 				EvaluatorID: cfg.EvaluatorID,
 				Version:     cfg.Version,
+				Source:      provenance,
 			}
 
 			// Create tarball from content directory, excluding test
@@ -149,8 +167,43 @@ Examples:
 	cmd.Flags().BoolVar(&plainHTTP, "plain-http", false, "Use HTTP instead of HTTPS for the registry")
 	cmd.Flags().BoolVar(&skipValidation, "skip-validation", false, "Skip all pre-pack validation")
 	cmd.Flags().BoolVar(&skipTests, "skip-tests", false, "Run syntax and contract checks but skip test execution")
+	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", cache.CacheDirHelp)
 
 	return cmd
+}
+
+// resolveProvenance resolves the Gemara sources declared in cfg and maps
+// them to the provenance records recorded in the pack's config blob.
+//
+// It hard-fails (fail-closed) when any declared source cannot be loaded or
+// resolved, naming every offending source (credential-sanitized). A config
+// with no declared sources yields nil provenance. Sources that load and
+// merge cleanly but resolve to no policy yield empty provenance without
+// error. Resolution runs under a bounded context (CWE-400).
+func resolveProvenance(ctx context.Context, cfg *config.ComplyPackConfig, cacheDir string) ([]complypack.Provenance, error) {
+	if len(cfg.Gemara.Sources) == 0 {
+		return nil, nil
+	}
+
+	resolvedCacheDir, err := cache.ResolveDir(cacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, packResolveTimeout)
+	defer cancel()
+
+	// Resolution can fetch remote sources and run up to packResolveTimeout;
+	// log progress so the operator is not left staring at a silent command.
+	log.Printf("Resolving %d gemara source(s)...", len(cfg.Gemara.Sources))
+	result, err := pipeline.LoadAndResolve(ctx, cfg.Gemara.Sources, resolvedCacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving gemara sources: %w", err)
+	}
+	log.Printf("Resolved %d gemara source(s), recorded provenance for %d policy(ies).",
+		len(cfg.Gemara.Sources), len(result.Resolved))
+
+	return pipeline.BuildProvenance(result.Resolved), nil
 }
 
 // runPrePackValidation runs the 3-stage validation pipeline before packing.

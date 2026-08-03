@@ -6,6 +6,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -71,7 +72,12 @@ func LoadArtifacts(ctx context.Context, source string, plainHTTP bool, cacheDir 
 func loadFileArtifacts(_ context.Context, path string) (*requirement.ArtifactSet, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		// Redact any embedded credentials before surfacing the path: a
+		// source string that is not an OCI reference (e.g. an https:// URL
+		// with userinfo) reaches os.ReadFile verbatim, and its error echoes
+		// the raw path (CWE-209: Information Exposure Through an Error Message).
+		return nil, fmt.Errorf("failed to read file %q: %w",
+			registry.RedactCredentials(path), redactPathError(err))
 	}
 
 	result, err := requirement.Classify(data)
@@ -80,6 +86,23 @@ func loadFileArtifacts(_ context.Context, path string) (*requirement.ArtifactSet
 	}
 
 	return result, nil
+}
+
+// redactPathError returns an error whose *os.PathError has a redacted Path so a
+// wrapped filesystem error does not re-leak an embedded credential in its own
+// message (os.PathError.Error includes the raw path). It returns a redacted
+// copy rather than mutating the original, so the caller's error value is never
+// altered as a side effect. Non-PathError values pass through unchanged.
+func redactPathError(err error) error {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return &os.PathError{
+			Op:   pathErr.Op,
+			Path: registry.RedactCredentials(pathErr.Path),
+			Err:  pathErr.Err,
+		}
+	}
+	return err
 }
 
 func loadBundleArtifacts(ctx context.Context, ref string, plainHTTP bool, cacheDir string) (*requirement.ArtifactSet, error) {

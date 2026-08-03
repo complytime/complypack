@@ -23,9 +23,17 @@ func TestUnpackRoundTrip(t *testing.T) {
 		ID:          "io.test.pack",
 		EvaluatorID: "io.complytime.opa",
 		Version:     "1.0.0",
-		Source: &complypack.Provenance{
-			GemaraContent: "oci://registry/gemara/controls:v1",
-			PolicyID:      "pol-123",
+		Source: []complypack.Provenance{
+			{
+				PolicyID: "pol-123",
+				GemaraContent: []complypack.GemaraRef{
+					{
+						ReferenceID: "ref-1",
+						URI:         "oci://registry/gemara/controls:v1",
+						Version:     "1.0.0",
+					},
+				},
+			},
 		},
 	}
 
@@ -49,11 +57,27 @@ func TestUnpackRoundTrip(t *testing.T) {
 	if result.Config.Version != cfg.Version {
 		t.Errorf("Version = %q, want %q", result.Config.Version, cfg.Version)
 	}
-	if result.Config.Source == nil {
-		t.Fatal("Source is nil")
+	if len(result.Config.Source) != len(cfg.Source) {
+		t.Fatalf("Source length = %d, want %d", len(result.Config.Source), len(cfg.Source))
 	}
-	if result.Config.Source.GemaraContent != cfg.Source.GemaraContent {
-		t.Errorf("GemaraContent = %q, want %q", result.Config.Source.GemaraContent, cfg.Source.GemaraContent)
+	if result.Config.Source[0].PolicyID != cfg.Source[0].PolicyID {
+		t.Errorf("PolicyID = %q, want %q",
+			result.Config.Source[0].PolicyID, cfg.Source[0].PolicyID)
+	}
+	if len(result.Config.Source[0].GemaraContent) != len(cfg.Source[0].GemaraContent) {
+		t.Fatalf("GemaraContent length = %d, want %d",
+			len(result.Config.Source[0].GemaraContent), len(cfg.Source[0].GemaraContent))
+	}
+	gotRef := result.Config.Source[0].GemaraContent[0]
+	wantRef := cfg.Source[0].GemaraContent[0]
+	if gotRef.ReferenceID != wantRef.ReferenceID {
+		t.Errorf("GemaraContent ReferenceID = %q, want %q", gotRef.ReferenceID, wantRef.ReferenceID)
+	}
+	if gotRef.URI != wantRef.URI {
+		t.Errorf("GemaraContent URI = %q, want %q", gotRef.URI, wantRef.URI)
+	}
+	if gotRef.Version != wantRef.Version {
+		t.Errorf("GemaraContent Version = %q, want %q", gotRef.Version, wantRef.Version)
 	}
 
 	// Verify content

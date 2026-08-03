@@ -56,9 +56,11 @@ evaluator-id: opa
 # ComplyPack artifact version
 version: 0.1.0
 
-# Gemara policy source (for MCP server)
+# Gemara policy sources. Drive the MCP server's policy tools and, when
+# packing, the source provenance recorded in the published artifact.
 gemara:
-  source: oci://ghcr.io/org/controls:v1
+  sources:
+    - source: oci://ghcr.io/org/controls:v1
 
 # Platform schemas (for MCP server validation tools)
 # Built-in platforms: ci-github-actions, ci-gitlab, ci-azure-pipelines,
@@ -156,7 +158,14 @@ complypack pack policy/ ghcr.io/org/my-policies:v1.0.0
 complypack pack policy/ localhost:5001/test:latest --plain-http
 ```
 
-The command reads `evaluator-id` and `version` from `complypack.yaml`. The content directory is tar+gzipped and stored as the artifact's opaque content layer.
+The command reads `evaluator-id`, `version`, and `gemara.sources` from `complypack.yaml`. The content directory is tar+gzipped and stored as the artifact's opaque content layer.
+
+If `complypack.yaml` declares `gemara.sources`, `pack` also resolves those sources and records their policy provenance in the artifact's config blob (see [Source Provenance](#source-provenance)). Source resolution fails closed: an unresolvable source aborts the pack, and resolution is bounded by a 5-minute timeout.
+
+Flags:
+
+- `--cache-dir`  Cache directory for resolved Gemara sources (default: `$XDG_CACHE_HOME/complypack` or `$HOME/.cache/complypack`). Set this when running in a restricted or headless environment where `HOME` is unset.
+- `--plain-http` Use plain HTTP instead of HTTPS for the target registry
 
 ### Validate a policy
 
@@ -292,6 +301,28 @@ Run `complypack completion --help` for detailed instructions per shell.
 | Content Layer | `application/vnd.complypack.content.v1.tar+gzip` |
 
 The content layer is **opaque** — the `evaluator-id` in the config tells consumers which provider handles it. For OPA, this is a tarball of `.rego` files.
+
+#### Source Provenance
+
+When a pack is built from `gemara.sources`, `complypack pack` resolves those sources and records which Gemara policies the pack implements in the config blob under `source`:
+
+```json
+{
+  "source": [
+    {
+      "policy-id": "container-platform-policy",
+      "gemara-content": [
+        { "reference-id": "container-security-controls", "uri": "https://example.com/catalog", "version": "1.0.0" },
+        { "reference-id": "container-security-guidance", "version": "1.0.0" }
+      ]
+    }
+  ]
+}
+```
+
+- One entry per resolved policy (`policy-id`); `gemara-content` lists the catalog and guidance references that policy imports.
+- `uri` is sanitized before it is recorded into the published blob: userinfo, query strings, and fragments are stripped, and local/`file://` paths are omitted (the `reference-id` and `version` are still recorded). This keeps internal paths and embedded credentials out of a publicly distributable artifact.
+- `source` is omitted entirely when a pack declares no `gemara.sources` or its sources resolve to no policy. Unresolvable sources fail the pack.
 
 ### Policy Graph Resolution
 

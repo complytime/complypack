@@ -24,9 +24,17 @@ func TestIntegrationMemoryStore(t *testing.T) {
 		ID:          "io.test.pack",
 		EvaluatorID: "io.complytime.opa",
 		Version:     "1.0.0",
-		Source: &complypack.Provenance{
-			GemaraContent: "oci://registry/gemara/controls:v1",
-			PolicyID:      "test-policy-001",
+		Source: []complypack.Provenance{
+			{
+				PolicyID: "test-policy-001",
+				GemaraContent: []complypack.GemaraRef{
+					{
+						ReferenceID: "ref-1",
+						URI:         "oci://registry/gemara/controls:v1",
+						Version:     "1.0.0",
+					},
+				},
+			},
 		},
 	}
 
@@ -56,14 +64,20 @@ func TestIntegrationMemoryStore(t *testing.T) {
 	if result.Config.Version != cfg.Version {
 		t.Errorf("Version = %q, want %q", result.Config.Version, cfg.Version)
 	}
-	if result.Config.Source == nil {
-		t.Fatal("Source is nil")
+	if len(result.Config.Source) != len(cfg.Source) {
+		t.Fatalf("Source length = %d, want %d", len(result.Config.Source), len(cfg.Source))
 	}
-	if result.Config.Source.GemaraContent != cfg.Source.GemaraContent {
-		t.Errorf("GemaraContent mismatch")
-	}
-	if result.Config.Source.PolicyID != cfg.Source.PolicyID {
+	if result.Config.Source[0].PolicyID != cfg.Source[0].PolicyID {
 		t.Errorf("PolicyID mismatch")
+	}
+	if len(result.Config.Source[0].GemaraContent) != len(cfg.Source[0].GemaraContent) {
+		t.Fatalf("GemaraContent length mismatch")
+	}
+	if result.Config.Source[0].GemaraContent[0].URI != cfg.Source[0].GemaraContent[0].URI {
+		t.Errorf("GemaraContent URI mismatch")
+	}
+	if result.Config.Source[0].GemaraContent[0].ReferenceID != cfg.Source[0].GemaraContent[0].ReferenceID {
+		t.Errorf("GemaraContent ReferenceID mismatch")
 	}
 
 	unpackedContent, err := io.ReadAll(result.Content)

@@ -24,7 +24,9 @@ func NewRepository(ref string, credFunc auth.CredentialFunc, plainHTTP bool) (*r
 	// Parse the reference to extract repository name
 	parsedRef, err := registry.ParseReference(stripScheme(ref))
 	if err != nil {
-		return nil, fmt.Errorf("invalid OCI reference %q: %w", ref, err)
+		// Redact any embedded credentials before surfacing the reference in
+		// an error (CWE-209: Information Exposure Through an Error Message).
+		return nil, fmt.Errorf("invalid OCI reference %q: %w", RedactCredentials(ref), err)
 	}
 
 	repoName := fmt.Sprintf("%s/%s", parsedRef.Registry, parsedRef.Repository)
@@ -82,4 +84,58 @@ func stripScheme(ref string) string {
 	ref = strings.TrimPrefix(ref, "http://")
 	ref = strings.TrimPrefix(ref, "https://")
 	return ref
+}
+
+// RedactCredentials removes any userinfo (user:password@) embedded in an OCI
+// or URL reference so it can be safely surfaced in error messages or recorded
+// into published artifacts (CWE-209 / CWE-200). The scheme (if any) and the
+// host/path portion are preserved so operators can still identify the source.
+//
+// Any "scheme://" prefix is recognized generically (RFC 3986 scheme syntax),
+// not just a fixed allow-list, so credentials embedded after an unlisted
+// scheme (e.g. ssh://user:pass@host/path) are still stripped rather than
+// leaked. Userinfo is identified as the last '@' occurring before the first
+// '/' of the authority, so passwords containing '@' are fully stripped and a
+// digest reference (repo@sha256:...) that places '@' after the path is left
+// intact. The original scheme casing is preserved.
+func RedactCredentials(ref string) string {
+	scheme, rest := splitScheme(ref)
+
+	// Userinfo, if present, is delimited by the last '@' before the first '/'.
+	slash := strings.IndexByte(rest, '/')
+	authority := rest
+	if slash >= 0 {
+		authority = rest[:slash]
+	}
+	if at := strings.LastIndexByte(authority, '@'); at >= 0 {
+		rest = rest[at+1:]
+	}
+
+	return scheme + rest
+}
+
+// splitScheme separates a leading "scheme://" prefix from the remainder of a
+// reference, returning the prefix (including "://", original casing preserved)
+// and the rest. When no valid scheme prefix is present, scheme is "" and rest
+// is the input unchanged. A scheme is a leading ALPHA followed by any of
+// ALPHA / DIGIT / "+" / "-" / "." per RFC 3986, terminated by "://".
+func splitScheme(ref string) (scheme, rest string) {
+	sep := strings.Index(ref, "://")
+	if sep <= 0 {
+		return "", ref
+	}
+	for i := 0; i < sep; i++ {
+		c := ref[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+			// always allowed
+		case c >= '0' && c <= '9', c == '+', c == '-', c == '.':
+			if i == 0 {
+				return "", ref // scheme must start with a letter
+			}
+		default:
+			return "", ref // not a valid scheme character
+		}
+	}
+	return ref[:sep+len("://")], ref[sep+len("://"):]
 }

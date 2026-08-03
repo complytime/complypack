@@ -5,12 +5,14 @@ package complypack_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 
 	"github.com/complytime/complypack/pkg/complypack"
@@ -45,9 +47,17 @@ func TestPackWithProvenance(t *testing.T) {
 		ID:          "io.test.pack",
 		EvaluatorID: "io.complytime.opa",
 		Version:     "1.0.0",
-		Source: &complypack.Provenance{
-			GemaraContent: "oci://registry/gemara/controls:v1",
-			PolicyID:      "pol-123",
+		Source: []complypack.Provenance{
+			{
+				PolicyID: "pol-123",
+				GemaraContent: []complypack.GemaraRef{
+					{
+						ReferenceID: "ref-1",
+						URI:         "oci://registry/gemara/controls:v1",
+						Version:     "1.0.0",
+					},
+				},
+			},
 		},
 	}
 
@@ -56,6 +66,90 @@ func TestPackWithProvenance(t *testing.T) {
 	desc, err := complypack.Pack(ctx, store, cfg, content)
 	require.NoError(t, err)
 	assert.NotEmpty(t, desc.Digest)
+
+	// The config blob must carry the provenance as a "source" array.
+	raw := fetchConfigBlob(t, ctx, store, desc)
+	source, ok := raw["source"].([]any)
+	require.True(t, ok, "config blob should contain a source array")
+	require.Len(t, source, 1)
+	entry, ok := source[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "pol-123", entry["policy-id"])
+
+	gemaraContent, ok := entry["gemara-content"].([]any)
+	require.True(t, ok, "source entry should contain a gemara-content array")
+	require.Len(t, gemaraContent, 1)
+	ref, ok := gemaraContent[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "ref-1", ref["reference-id"])
+	assert.Equal(t, "oci://registry/gemara/controls:v1", ref["uri"])
+	assert.Equal(t, "1.0.0", ref["version"])
+}
+
+func TestPackWithoutProvenanceOmitsSource(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New()
+
+	cfg := complypack.Config{
+		ID:          "io.test.pack",
+		EvaluatorID: "io.complytime.opa",
+		Version:     "1.0.0",
+	}
+
+	desc, err := complypack.Pack(ctx, store, cfg, strings.NewReader("fake policy content"))
+	require.NoError(t, err)
+
+	raw := fetchConfigBlob(t, ctx, store, desc)
+	_, exists := raw["source"]
+	assert.False(t, exists, "config blob should omit source when no provenance is set")
+}
+
+func TestPackProvenanceByteIdentical(t *testing.T) {
+	ctx := context.Background()
+
+	cfg := complypack.Config{
+		ID:          "io.test.pack",
+		EvaluatorID: "io.complytime.opa",
+		Version:     "1.0.0",
+		Source: []complypack.Provenance{
+			{
+				PolicyID: "pol-123",
+				GemaraContent: []complypack.GemaraRef{
+					{ReferenceID: "ref-1", URI: "oci://registry/gemara/controls:v1", Version: "1.0.0"},
+				},
+			},
+		},
+	}
+
+	store1 := memory.New()
+	desc1, err := complypack.Pack(ctx, store1, cfg, strings.NewReader("fake policy content"))
+	require.NoError(t, err)
+
+	store2 := memory.New()
+	desc2, err := complypack.Pack(ctx, store2, cfg, strings.NewReader("fake policy content"))
+	require.NoError(t, err)
+
+	assert.Equal(t, desc1.Digest, desc2.Digest,
+		"identical input must produce a byte-identical config blob and manifest digest")
+}
+
+// fetchConfigBlob reads the manifest referenced by desc and returns its config
+// blob decoded into a generic JSON map.
+func fetchConfigBlob(t *testing.T, ctx context.Context, store content.Fetcher, desc ocispec.Descriptor) map[string]any {
+	t.Helper()
+
+	manifestBytes, err := content.FetchAll(ctx, store, desc)
+	require.NoError(t, err)
+
+	var manifest ocispec.Manifest
+	require.NoError(t, json.Unmarshal(manifestBytes, &manifest))
+
+	configBytes, err := content.FetchAll(ctx, store, manifest.Config)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(configBytes, &raw))
+	return raw
 }
 
 func TestPackWithAnnotations(t *testing.T) {
