@@ -51,16 +51,14 @@ func LoadAndResolve(
 
 	resolved := make(map[string]*requirement.ResolvedPolicy)
 	for id, policy := range loaded.Policies {
-		if len(loaded.Catalogs) > 0 || len(loaded.Guidance) > 0 {
-			rp, err := requirement.ResolvePolicy(*policy, loaded)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"failed to resolve effective policy %s: %w",
-					id, err,
-				)
-			}
-			resolved[id] = rp
+		rp, err := requirement.ResolvePolicy(*policy, loaded)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to resolve effective policy %s: %w",
+				id, err,
+			)
 		}
+		resolved[id] = rp
 	}
 
 	return &LoadResult{
