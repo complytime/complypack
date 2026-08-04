@@ -252,6 +252,75 @@ func (c *ComplyPackConfig) ValidateForInit() error {
 	return nil
 }
 
+// ValidScopes lists the accepted values for the --scope flag.
+var ValidScopes = []string{"pack", "serve", "init", "all"}
+
+// ValidUnknownFields lists the accepted values for the --unknown-fields flag.
+var ValidUnknownFields = []string{"warn", "error"}
+
+// ScopeResult holds the validation result for a single scope.
+type ScopeResult struct {
+	Scope string
+	Valid bool
+	Error string
+}
+
+// ValidateScopes validates a config against the specified scopes.
+// Valid scopes are "pack", "serve", and "init". If scopes is empty or
+// contains "all", all three scopes are checked. Returns one result per
+// scope. The config's basic validation (schema + structure) is assumed
+// to have already passed via LoadConfig.
+func (c *ComplyPackConfig) ValidateScopes(scopes []string) []ScopeResult {
+	type scopeEntry struct {
+		name     string
+		validate func() error
+	}
+
+	all := []scopeEntry{
+		{"pack", c.ValidateForPack},
+		{"serve", c.ValidateForMCP},
+		{"init", c.ValidateForInit},
+	}
+
+	// Determine which scopes to run
+	runAll := len(scopes) == 0
+	if !runAll {
+		for _, s := range scopes {
+			if s == "all" {
+				runAll = true
+				break
+			}
+		}
+	}
+
+	var entries []scopeEntry
+	if runAll {
+		entries = all
+	} else {
+		scopeSet := make(map[string]bool, len(scopes))
+		for _, s := range scopes {
+			scopeSet[s] = true
+		}
+		for _, e := range all {
+			if scopeSet[e.name] {
+				entries = append(entries, e)
+			}
+		}
+	}
+
+	results := make([]ScopeResult, 0, len(entries))
+	for _, e := range entries {
+		r := ScopeResult{Scope: e.name, Valid: true}
+		if err := e.validate(); err != nil {
+			r.Valid = false
+			r.Error = err.Error()
+		}
+		results = append(results, r)
+	}
+
+	return results
+}
+
 // BuildConfig assembles a ComplyPackConfig from parsed component values.
 // This is the single assembly point for both init and mcp serve commands.
 func BuildConfig(id, evaluatorID, version string, sources []GemaraSourceEntry, schemas []SchemaRef) *ComplyPackConfig {

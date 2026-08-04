@@ -3,12 +3,14 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/complytime/complypack/internal/config"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -321,6 +323,135 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 		// Build response
 		return buildTestResultsResponse(results)
 	}
+}
+
+// createValidateConfigTool creates the MCP tool definition for validate_config.
+func createValidateConfigTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:        "validate_config",
+		Description: "Validate a complypack.yaml configuration file against the JSON Schema, structural rules, and scope-specific requirements. Returns structured validation results.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "Path to the complypack.yaml configuration file to validate",
+				},
+				"unknownFields": map[string]interface{}{
+					"type":        "string",
+					"description": "How to handle unknown config fields: 'warn' (default) or 'error'",
+					"enum":        toInterfaceSlice(config.ValidUnknownFields),
+				},
+				"scope": map[string]interface{}{
+					"type":        "array",
+					"description": "Validation scopes: pack, serve, init, or all (default: all)",
+					"items": map[string]interface{}{
+						"type": "string",
+						"enum": toInterfaceSlice(config.ValidScopes),
+					},
+				},
+			},
+			"required": []interface{}{"path"},
+		},
+	}
+}
+
+// handleValidateConfig handles the validate_config MCP tool.
+//
+// Security note: the path parameter is passed directly to os.ReadFile via
+// config.LoadConfig. This is safe because the MCP server uses stdio transport
+// only (see cmd/complypack/cli/mcp.go), meaning the caller is a local process
+// that already has equivalent filesystem access. If non-stdio transports are
+// added in the future, path validation should be added here.
+func handleValidateConfig() mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var input struct {
+			Path          string   `json:"path"`
+			UnknownFields string   `json:"unknownFields"`
+			Scope         []string `json:"scope"`
+		}
+
+		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
+			return nil, fmt.Errorf("failed to parse input: %w", err)
+		}
+
+		strict := input.UnknownFields == "error"
+
+		var warnings bytes.Buffer
+		cfg, err := config.LoadConfig(input.Path, strict, &warnings)
+		if err != nil {
+			response := map[string]interface{}{
+				"valid":    false,
+				"errors":   []string{err.Error()},
+				"warnings": []string{},
+				"scopes":   []interface{}{},
+			}
+
+			responseJSON, jsonErr := json.Marshal(response)
+			if jsonErr != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", jsonErr)
+			}
+
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{
+						Text: string(responseJSON),
+					},
+				},
+			}, nil
+		}
+
+		// Run scope-specific validation
+		scopeResults := cfg.ValidateScopes(input.Scope)
+
+		scopeMaps := make([]map[string]interface{}, len(scopeResults))
+		allValid := true
+		for i, r := range scopeResults {
+			scopeMaps[i] = map[string]interface{}{
+				"scope": r.Scope,
+				"valid": r.Valid,
+				"error": r.Error,
+			}
+			if !r.Valid {
+				allValid = false
+			}
+		}
+
+		// Collect warnings as a string slice
+		var warningList []string
+		if warnings.Len() > 0 {
+			warningList = append(warningList, warnings.String())
+		}
+
+		response := map[string]interface{}{
+			"valid":    allValid,
+			"errors":   []string{},
+			"warnings": warningList,
+			"scopes":   scopeMaps,
+		}
+
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(responseJSON),
+				},
+			},
+		}, nil
+	}
+}
+
+// toInterfaceSlice converts a string slice to an interface slice for JSON schema definitions.
+func toInterfaceSlice(ss []string) []interface{} {
+	out := make([]interface{}, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
 }
 
 // GetValidatePolicyHandler exposes handler for testing.

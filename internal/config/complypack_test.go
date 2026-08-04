@@ -825,3 +825,72 @@ func TestBuildConfig_EmptyOptionalFields(t *testing.T) {
 	assert.Nil(t, cfg.Gemara.Sources)
 	assert.Nil(t, cfg.Schemas)
 }
+
+func TestValidateScopes_AllScopes(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScopes([]string{"all"})
+	require.Len(t, results, 3)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid, "pack should fail: missing id")
+	assert.Contains(t, results[0].Error, "id")
+	assert.Equal(t, "serve", results[1].Scope)
+	assert.False(t, results[1].Valid, "serve should fail: missing gemara.sources")
+	assert.Contains(t, results[1].Error, "gemara.sources")
+	assert.Equal(t, "init", results[2].Scope)
+	assert.False(t, results[2].Valid, "init should fail: missing id")
+	assert.Contains(t, results[2].Error, "id")
+}
+
+func TestValidateScopes_EmptyScopes(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScopes(nil)
+	require.Len(t, results, 3)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid, "pack should fail: missing id")
+	assert.Equal(t, "serve", results[1].Scope)
+	assert.False(t, results[1].Valid, "serve should fail: missing gemara.sources")
+	assert.Equal(t, "init", results[2].Scope)
+	assert.False(t, results[2].Valid, "init should fail: missing id")
+}
+
+func TestValidateScopes_PackOnly(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScopes([]string{"pack"})
+	require.Len(t, results, 1)
+	assert.Equal(t, "pack", results[0].Scope)
+	assert.False(t, results[0].Valid)
+	assert.Contains(t, results[0].Error, "id")
+}
+
+func TestValidateScopes_ServeOnly(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		Version: "1.0.0",
+	}
+	results := cfg.ValidateScopes([]string{"serve"})
+	require.Len(t, results, 1)
+	assert.Equal(t, "serve", results[0].Scope)
+	assert.False(t, results[0].Valid)
+	assert.Contains(t, results[0].Error, "gemara.sources")
+}
+
+func TestValidateScopes_FullConfig(t *testing.T) {
+	cfg := &ComplyPackConfig{
+		ID:          "io.complytime.test",
+		EvaluatorID: "opa",
+		Version:     "1.0.0",
+		Schemas:     []SchemaRef{{Platform: "kubernetes"}},
+		Gemara:      GemaraConfig{Sources: []GemaraSourceEntry{{Source: "catalogs/controls.yaml"}}},
+	}
+	results := cfg.ValidateScopes([]string{"all"})
+	require.Len(t, results, 3)
+	for _, r := range results {
+		assert.True(t, r.Valid, "scope %s should be valid", r.Scope)
+		assert.Empty(t, r.Error, "scope %s should have no error", r.Scope)
+	}
+}

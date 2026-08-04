@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -423,6 +425,161 @@ func TestHandleValidatePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateValidateConfigTool(t *testing.T) {
+	tool := createValidateConfigTool()
+
+	assert.Equal(t, "validate_config", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.NotNil(t, tool.InputSchema)
+
+	schema := tool.InputSchema.(map[string]interface{})
+	props := schema["properties"].(map[string]interface{})
+
+	assert.Contains(t, props, "path")
+	assert.Contains(t, props, "unknownFields")
+	assert.Contains(t, props, "scope")
+
+	required := schema["required"].([]interface{})
+	assert.Contains(t, required, "path")
+}
+
+func TestHandleValidateConfig(t *testing.T) {
+	handler := handleValidateConfig()
+
+	t.Run("valid config returns structured JSON", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "complypack.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
+
+		input := map[string]interface{}{
+			"path": cfgPath,
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		// Minimal config: schema validation passes but scope checks may fail
+		assert.False(t, response["valid"].(bool), "minimal config fails scope validation")
+		errors := response["errors"].([]interface{})
+		assert.Empty(t, errors, "no schema-level errors")
+
+		scopes := response["scopes"].([]interface{})
+		assert.Len(t, scopes, 3, "default validates all 3 scopes")
+	})
+
+	t.Run("invalid config returns structured error", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "complypack.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: nope\n"), 0600))
+
+		input := map[string]interface{}{
+			"path": cfgPath,
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.False(t, result.IsError, "validation failures use structured JSON, not IsError")
+
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response["valid"].(bool))
+		errors := response["errors"].([]interface{})
+		assert.NotEmpty(t, errors)
+		assert.Contains(t, errors[0].(string), "schema validation", "error should mention schema validation")
+	})
+
+	t.Run("unknownFields error mode", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "complypack.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\nbogus: true\n"), 0600))
+
+		input := map[string]interface{}{
+			"path":          cfgPath,
+			"unknownFields": "error",
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.False(t, result.IsError, "validation failures use structured JSON, not IsError")
+
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		assert.False(t, response["valid"].(bool))
+		errors := response["errors"].([]interface{})
+		assert.NotEmpty(t, errors, "strict mode should produce errors for unknown fields")
+	})
+
+	t.Run("scope filtering", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, "complypack.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("version: 0.1.0\nschemas:\n  - platform: kubernetes-deployment\n"), 0600))
+
+		input := map[string]interface{}{
+			"path":  cfgPath,
+			"scope": []string{"pack"},
+		}
+		inputJSON, err := json.Marshal(input)
+		require.NoError(t, err)
+
+		req := &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "validate_config",
+				Arguments: inputJSON,
+			},
+		}
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+
+		scopes := response["scopes"].([]interface{})
+		assert.Len(t, scopes, 1, "should only validate requested scope")
+
+		scopeMap := scopes[0].(map[string]interface{})
+		assert.Equal(t, "pack", scopeMap["scope"])
+		assert.False(t, scopeMap["valid"].(bool), "pack scope should fail: missing id")
+	})
 }
 
 func TestHandleTestPolicy(t *testing.T) {
