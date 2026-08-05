@@ -67,6 +67,8 @@ func TestLoadAndResolve(t *testing.T) {
 		assert.Contains(t, result.Resolved, "standalone-policy",
 			"policy must be resolved even when no catalogs or guidance are loaded")
 		require.NotNil(t, result.Resolved["standalone-policy"])
+		assert.Equal(t, path, result.PolicySources["standalone-policy"],
+			"PolicySources must record the source that provided the policy")
 	})
 
 	t.Run("invalid source returns error naming the source", func(t *testing.T) {
@@ -149,7 +151,7 @@ func TestLoadAndResolve(t *testing.T) {
 	})
 
 	t.Run("credential-bearing failing source is named without leaking the secret", func(t *testing.T) {
-		// Proves SanitizeSourceID is applied to the source label on the
+		// Proves RedactCredentials is applied to the source label on the
 		// batch-error path (CWE-209): the failure names the redacted source
 		// and the embedded password never appears in the joined error.
 		sources := []config.GemaraSourceEntry{
@@ -181,63 +183,4 @@ func TestLoadAndResolve(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "failed to resolve effective policy")
 	})
-}
-
-func TestSanitizeSourceID(t *testing.T) {
-	tests := []struct {
-		name   string
-		source string
-		want   string
-	}{
-		{
-			name:   "plain file path is unchanged",
-			source: "file://catalogs/controls.yaml",
-			want:   "file://catalogs/controls.yaml",
-		},
-		{
-			name:   "plain oci reference is unchanged",
-			source: "ghcr.io/org/catalog:v1",
-			want:   "ghcr.io/org/catalog:v1",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "oci scheme reference with embedded credentials is redacted",
-			source: "oci://user:secret@ghcr.io/org/catalog:v1",
-			want:   "oci://ghcr.io/org/catalog:v1",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "https reference with embedded credentials is redacted",
-			source: "https://user:secret@registry.example.com/org/repo:tag",
-			want:   "https://registry.example.com/org/repo:tag",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "bare reference with embedded credentials is redacted",
-			source: "user:secret@ghcr.io/org/catalog:v1",
-			want:   "ghcr.io/org/catalog:v1",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "password containing @ is fully redacted (last @ before slash)",
-			source: "https://user:p@ss@registry.example.com/org/repo:tag",
-			want:   "https://registry.example.com/org/repo:tag",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "uppercase scheme is redacted (case-insensitive)",
-			source: "OCI://user:secret@ghcr.io/org/catalog:v1",
-			want:   "OCI://ghcr.io/org/catalog:v1",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "mixed-case scheme is redacted (case-insensitive)",
-			source: "HtTpS://user:secret@registry.example.com/org/repo:tag",
-			want:   "HtTpS://registry.example.com/org/repo:tag",
-		},
-		{ //nolint:gosec // test fixture, not real credentials
-			name:   "credentials before a later slash segment are redacted",
-			source: "user:secret@ghcr.io/org/catalog",
-			want:   "ghcr.io/org/catalog",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, pipeline.SanitizeSourceID(tt.source))
-		})
-	}
 }

@@ -125,7 +125,7 @@ func TestResolveProvenance(t *testing.T) {
 			},
 		}
 
-		provenance := pipeline.BuildProvenance(resolved)
+		provenance := pipeline.BuildProvenance(resolved, nil)
 		require.Len(t, provenance, 1)
 
 		packCfg := complypack.Config{

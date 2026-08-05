@@ -52,7 +52,7 @@ func TestBuildProvenance(t *testing.T) {
 			),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		want := []complypack.Provenance{
 			{
@@ -76,7 +76,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"cat-2"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 2, "one entry per distinct policy, not sources*policies")
 		assert.Equal(t, "policy-a", got[0].PolicyID)
@@ -126,7 +126,7 @@ func TestBuildProvenance(t *testing.T) {
 
 		// Repeat to defeat any single-iteration luck if a sort is dropped.
 		for i := 0; i < 20; i++ {
-			assert.Equal(t, want, pipeline.BuildProvenance(resolved))
+			assert.Equal(t, want, pipeline.BuildProvenance(resolved, nil))
 		}
 	})
 
@@ -137,7 +137,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"local"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 1)
@@ -155,7 +155,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"r"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 1)
@@ -171,7 +171,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"r"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 1)
@@ -188,7 +188,7 @@ func TestBuildProvenance(t *testing.T) {
 			"lonely": resolvedPolicy("lonely", nil, nil, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		assert.Empty(t, got, "import-less policy must be skipped, not emitted with empty gemara-content")
 	})
@@ -201,7 +201,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"cat-1"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 1, "only the importing policy is recorded")
 		assert.Equal(t, "real", got[0].PolicyID)
@@ -214,7 +214,7 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"orphan"}, nil),
 		}
 
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 1)
@@ -224,12 +224,12 @@ func TestBuildProvenance(t *testing.T) {
 	})
 
 	t.Run("empty resolved map yields empty slice", func(t *testing.T) {
-		got := pipeline.BuildProvenance(map[string]*requirement.ResolvedPolicy{})
+		got := pipeline.BuildProvenance(map[string]*requirement.ResolvedPolicy{}, nil)
 		assert.Empty(t, got)
 	})
 
 	t.Run("nil resolved map yields empty slice", func(t *testing.T) {
-		got := pipeline.BuildProvenance(nil)
+		got := pipeline.BuildProvenance(nil, nil)
 		assert.Empty(t, got)
 	})
 
@@ -256,7 +256,7 @@ func TestBuildProvenance(t *testing.T) {
 						[]gemara.MappingReference{{Id: "r", Url: tc.url, Version: "1"}},
 						[]string{"r"}, nil),
 				}
-				got := pipeline.BuildProvenance(resolved)
+				got := pipeline.BuildProvenance(resolved, nil)
 				require.Len(t, got, 1)
 				require.Len(t, got[0].GemaraContent, 1)
 				assert.Empty(t, got[0].GemaraContent[0].URI,
@@ -275,7 +275,7 @@ func TestBuildProvenance(t *testing.T) {
 				},
 				[]string{"r"}, nil),
 		}
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 1)
 		assert.Equal(t, "https://registry.example.com:5000/cat.yaml", got[0].GemaraContent[0].URI)
@@ -290,12 +290,135 @@ func TestBuildProvenance(t *testing.T) {
 				[]string{"shared"},
 				[]string{"shared"}),
 		}
-		got := pipeline.BuildProvenance(resolved)
+		got := pipeline.BuildProvenance(resolved, nil)
 		require.Len(t, got, 1)
 		require.Len(t, got[0].GemaraContent, 2, "a ref imported twice yields two entries")
 		assert.Equal(t, "shared", got[0].GemaraContent[0].ReferenceID)
 		assert.Equal(t, "shared", got[0].GemaraContent[1].ReferenceID)
 		assert.Equal(t, "https://example.com/s", got[0].GemaraContent[0].URI)
 		assert.Equal(t, "https://example.com/s", got[0].GemaraContent[1].URI)
+	})
+
+	t.Run("OCI bundle source records bundle reference, not mapping-reference URLs", func(t *testing.T) {
+		resolved := map[string]*requirement.ResolvedPolicy{
+			"policy-a": resolvedPolicy("policy-a",
+				[]gemara.MappingReference{
+					{Id: "cat-1", Url: "https://assembly-time.example.com/cat.yaml", Version: "1.0"},
+					{Id: "guid-1", Url: "https://assembly-time.example.com/guid.yaml", Version: "2.0"},
+				},
+				[]string{"cat-1"},
+				[]string{"guid-1"},
+			),
+		}
+		policySources := map[string]string{
+			"policy-a": "ghcr.io/org/bundle:v1.0",
+		}
+
+		got := pipeline.BuildProvenance(resolved, policySources)
+
+		want := []complypack.Provenance{
+			{
+				PolicyID: "policy-a",
+				GemaraContent: []complypack.GemaraRef{
+					{ReferenceID: "cat-1", URI: "ghcr.io/org/bundle:v1.0", Version: "1.0"},
+					{ReferenceID: "guid-1", URI: "ghcr.io/org/bundle:v1.0", Version: "2.0"},
+				},
+			},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("OCI bundle source with oci:// scheme records bare reference", func(t *testing.T) {
+		resolved := map[string]*requirement.ResolvedPolicy{
+			"p": resolvedPolicy("p",
+				[]gemara.MappingReference{
+					{Id: "cat-1", Url: "https://assembly-time.example.com/cat.yaml", Version: "1.0"},
+				},
+				[]string{"cat-1"}, nil,
+			),
+		}
+		policySources := map[string]string{
+			"p": "oci://ghcr.io/org/bundle:v2.0",
+		}
+
+		got := pipeline.BuildProvenance(resolved, policySources)
+
+		require.Len(t, got, 1)
+		require.Len(t, got[0].GemaraContent, 1)
+		assert.Equal(t, "ghcr.io/org/bundle:v2.0", got[0].GemaraContent[0].URI,
+			"oci:// prefix must be stripped from the recorded reference")
+	})
+
+	t.Run("OCI bundle source with credentials records redacted reference", func(t *testing.T) {
+		resolved := map[string]*requirement.ResolvedPolicy{
+			"p": resolvedPolicy("p",
+				[]gemara.MappingReference{
+					{Id: "cat-1", Url: "https://assembly-time.example.com/cat.yaml", Version: "1.0"},
+				},
+				[]string{"cat-1"}, nil,
+			),
+		}
+		policySources := map[string]string{ //nolint:gosec // test fixture, not real credentials
+			"p": "oci://user:secret@ghcr.io/org/bundle:v1.0",
+		}
+
+		got := pipeline.BuildProvenance(resolved, policySources)
+
+		require.Len(t, got, 1)
+		require.Len(t, got[0].GemaraContent, 1)
+		assert.Equal(t, "ghcr.io/org/bundle:v1.0", got[0].GemaraContent[0].URI,
+			"credentials must be stripped from OCI bundle reference")
+	})
+
+	t.Run("file source uses MappingReference.Url, not source path", func(t *testing.T) {
+		resolved := map[string]*requirement.ResolvedPolicy{
+			"p": resolvedPolicy("p",
+				[]gemara.MappingReference{
+					{Id: "cat-1", Url: "https://example.com/cat.yaml", Version: "1.0"},
+				},
+				[]string{"cat-1"}, nil,
+			),
+		}
+		policySources := map[string]string{
+			"p": "file:///home/user/catalogs/policy.yaml",
+		}
+
+		got := pipeline.BuildProvenance(resolved, policySources)
+
+		require.Len(t, got, 1)
+		require.Len(t, got[0].GemaraContent, 1)
+		assert.Equal(t, "https://example.com/cat.yaml", got[0].GemaraContent[0].URI,
+			"file sources must use MappingReference.Url, not the file path")
+	})
+
+	t.Run("mixed OCI and file sources record correct URIs per policy", func(t *testing.T) {
+		resolved := map[string]*requirement.ResolvedPolicy{
+			"oci-policy": resolvedPolicy("oci-policy",
+				[]gemara.MappingReference{
+					{Id: "cat-1", Url: "https://assembly-time.example.com/cat.yaml", Version: "1.0"},
+				},
+				[]string{"cat-1"}, nil,
+			),
+			"file-policy": resolvedPolicy("file-policy",
+				[]gemara.MappingReference{
+					{Id: "cat-2", Url: "https://example.com/cat2.yaml", Version: "2.0"},
+				},
+				[]string{"cat-2"}, nil,
+			),
+		}
+		policySources := map[string]string{
+			"oci-policy":  "ghcr.io/org/bundle:v1.0",
+			"file-policy": "/local/path/policy.yaml",
+		}
+
+		got := pipeline.BuildProvenance(resolved, policySources)
+
+		require.Len(t, got, 2)
+		assert.Equal(t, "file-policy", got[0].PolicyID)
+		assert.Equal(t, "https://example.com/cat2.yaml", got[0].GemaraContent[0].URI,
+			"file-sourced policy must use MappingReference.Url")
+		assert.Equal(t, "oci-policy", got[1].PolicyID)
+		assert.Equal(t, "ghcr.io/org/bundle:v1.0", got[1].GemaraContent[0].URI,
+			"OCI-sourced policy must use the bundle reference")
 	})
 }
