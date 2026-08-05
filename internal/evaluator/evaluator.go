@@ -6,6 +6,8 @@ import (
 	"context"
 
 	"cuelang.org/go/cue"
+
+	"github.com/complytime/complypack/internal/testresult"
 )
 
 // Evaluator defines the interface for policy-language evaluators.
@@ -52,10 +54,11 @@ func (v ContractViolation) Error() string {
 
 // TestResults contains policy test execution results.
 type TestResults struct {
-	Total  int      // Total number of tests
-	Passed int      // Number of passing tests
-	Failed int      // Number of failing tests
-	Errors []string // Error messages from failing tests
+	Total   int                 // Total number of tests
+	Passed  int                 // Number of passing tests
+	Failed  int                 // Number of failing tests
+	Errors  []string            // Error messages from failing tests
+	Details []testresult.Detail // Per-test detail for each non-skipped test
 }
 
 // LintWarning represents a non-fatal linting issue.

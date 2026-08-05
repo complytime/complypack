@@ -11,6 +11,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/coverage"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -184,16 +185,28 @@ func buildTestDataErrorResponse(errors []string) (*mcp.CallToolResult, error) {
 }
 
 // buildTestResultsResponse constructs the test_policy response.
-func buildTestResultsResponse(results *evaluator.TestResults) (*mcp.CallToolResult, error) {
+// perRequirement is optional: if non-nil and non-empty, it is included
+// in the response under the "perRequirement" key.
+func buildTestResultsResponse(results *evaluator.TestResults, perRequirement map[string]coverage.RequirementTestStatus) (*mcp.CallToolResult, error) {
+	resultsMap := map[string]interface{}{
+		"total":  results.Total,
+		"passed": results.Passed,
+		"failed": results.Failed,
+		"errors": results.Errors,
+	}
+
+	if len(perRequirement) > 0 {
+		pr := make(map[string]string, len(perRequirement))
+		for reqID, status := range perRequirement {
+			pr[reqID] = string(status)
+		}
+		resultsMap["perRequirement"] = pr
+	}
+
 	response := map[string]interface{}{
 		"testDataValid": true,
 		"testsExecuted": true,
-		"results": map[string]interface{}{
-			"total":  results.Total,
-			"passed": results.Passed,
-			"failed": results.Failed,
-			"errors": results.Errors,
-		},
+		"results":       resultsMap,
 	}
 
 	responseJSON, err := json.Marshal(response)
@@ -320,8 +333,18 @@ func handleTestPolicy(store *ResourceStore) mcp.ToolHandler {
 			return nil, fmt.Errorf("test execution failed: %w", err)
 		}
 
+		// Compute per-requirement test attribution.
+		// Note: MCP receives policy content as a string (not from a directory),
+		// so contentDir and mappingPath are empty — only convention-based mapping
+		// applies. Override mapping files are supported via the CLI only.
+		// Degrade gracefully on attribution failure — return test results
+		// without per-requirement data rather than aborting the response.
+		// This aligns with CLI behavior at pack.go:240 which logs a WARNING
+		// and continues.
+		perReq, _ := coverage.AttributeTests("", "", results)
+
 		// Build response
-		return buildTestResultsResponse(results)
+		return buildTestResultsResponse(results, perReq)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/coverage"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/complytime/complypack/schemas"
@@ -321,7 +322,7 @@ func TestBuildTestResultsResponse(t *testing.T) {
 		},
 	}
 
-	result, err := buildTestResultsResponse(results)
+	result, err := buildTestResultsResponse(results, nil)
 	require.NoError(t, err)
 
 	// Parse result content
@@ -336,6 +337,61 @@ func TestBuildTestResultsResponse(t *testing.T) {
 	assert.Equal(t, float64(5), testResults["total"])
 	assert.Equal(t, float64(3), testResults["passed"])
 	assert.Equal(t, float64(2), testResults["failed"])
+
+	// No perRequirement field when nil is passed
+	_, hasPerReq := testResults["perRequirement"]
+	assert.False(t, hasPerReq, "perRequirement should be absent when nil is passed")
+}
+
+func TestBuildTestResultsResponse_WithPerRequirement(t *testing.T) {
+	results := &evaluator.TestResults{
+		Total:  5,
+		Passed: 4,
+		Failed: 1,
+		Errors: []string{"test_deny_root: expected denial"},
+	}
+	perReq := map[string]coverage.RequirementTestStatus{
+		"ac-2.1": coverage.Passing,
+		"sc-7":   coverage.Failing,
+	}
+
+	result, err := buildTestResultsResponse(results, perReq)
+	require.NoError(t, err)
+
+	var response map[string]interface{}
+	err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+	require.NoError(t, err)
+
+	// Aggregate fields unchanged
+	testResults := response["results"].(map[string]interface{})
+	assert.Equal(t, float64(5), testResults["total"])
+	assert.Equal(t, float64(4), testResults["passed"])
+	assert.Equal(t, float64(1), testResults["failed"])
+
+	// perRequirement present
+	pr := testResults["perRequirement"].(map[string]interface{})
+	assert.Equal(t, "passing", pr["ac-2.1"])
+	assert.Equal(t, "failing", pr["sc-7"])
+}
+
+func TestBuildTestResultsResponse_EmptyPerRequirement(t *testing.T) {
+	results := &evaluator.TestResults{
+		Total:  3,
+		Passed: 3,
+	}
+	// Empty (not nil) map should not produce perRequirement field
+	perReq := map[string]coverage.RequirementTestStatus{}
+
+	result, err := buildTestResultsResponse(results, perReq)
+	require.NoError(t, err)
+
+	var response map[string]interface{}
+	err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+	require.NoError(t, err)
+
+	testResults := response["results"].(map[string]interface{})
+	_, hasPerReq := testResults["perRequirement"]
+	assert.False(t, hasPerReq, "perRequirement should be absent for empty map")
 }
 
 func TestHandleValidatePolicy(t *testing.T) {
@@ -668,6 +724,20 @@ func TestHandleTestPolicy(t *testing.T) {
 
 			assert.Equal(t, tt.wantDataValid, response["testDataValid"])
 			assert.Equal(t, tt.wantTestsExecuted, response["testsExecuted"])
+
+			// Verify results content when tests were executed
+			if tt.wantTestsExecuted {
+				testResults, ok := response["results"].(map[string]interface{})
+				require.True(t, ok, "results should be a map")
+				assert.NotNil(t, testResults["total"])
+				assert.NotNil(t, testResults["passed"])
+				assert.NotNil(t, testResults["failed"])
+
+				// The test policy uses "package main" which doesn't match the
+				// requirement naming convention, so perRequirement should be absent.
+				_, hasPerReq := testResults["perRequirement"]
+				assert.False(t, hasPerReq, "perRequirement should be absent for non-matching package names")
+			}
 		})
 	}
 }
