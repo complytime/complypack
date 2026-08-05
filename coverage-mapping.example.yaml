@@ -1,0 +1,38 @@
+# coverage-mapping.yaml — Override file for per-requirement test attribution
+#
+# This file lets you manually map test packages to requirement IDs when the
+# naming convention ({family}_{major}[_{minor}...]) does not apply.
+#
+# Convention-based mapping (automatic):
+#   A test package named "ac_2_1_test" maps to requirement "ac-2.1".
+#   Packages that follow this pattern do NOT need an entry here.
+#
+# Override mapping (this file):
+#   Use this file to map test packages that do not follow the convention,
+#   or to map one package to multiple requirements.
+#
+# Place this file in your content directory (alongside your policies and tests).
+# It will be discovered automatically during `complypack pack`.
+#
+# Format:
+#   version: "1"
+#   mappings:
+#     <opa-package-path> (e.g., data.policy.<name>):
+#       - <requirement-id>
+#       - <requirement-id>
+
+version: "1"
+mappings:
+  # Map a non-standard test package to a requirement
+  data.policy.my_custom_rbac_tests:
+    - ac-3.1
+
+  # Map one test package to multiple requirements
+  data.policy.shared_access_control_tests:
+    - ac-2.1
+    - ac-3.2
+
+  # Map a test package whose name does not follow the convention
+  data.policy.network_segmentation_suite:
+    - sc-7
+    - sc-7.5

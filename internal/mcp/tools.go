@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/coverage"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -119,10 +121,16 @@ func buildValidationResponse(
 	}, nil
 }
 
-// buildTestPolicyResponse constructs the test_policy
-// MCP response from domain results.
+// buildTestPolicyResponse constructs the test_policy MCP response
+// from domain results, with optional per-requirement attribution.
+// perRequirement is optional: if non-nil, it is included in the response
+// under the "perRequirement" key — even when empty. This lets consumers
+// distinguish between "attribution was attempted but no tests matched the
+// naming convention" (perRequirement: {}) and "feature not available"
+// (perRequirement absent).
 func buildTestPolicyResponse(
 	r *evaluator.TestPolicyResult,
+	perRequirement map[string]coverage.RequirementTestStatus,
 ) (*mcp.CallToolResult, error) {
 	response := map[string]interface{}{
 		"testDataValid":  r.TestDataValid,
@@ -130,12 +138,22 @@ func buildTestPolicyResponse(
 		"testsExecuted":  r.TestsExecuted,
 	}
 	if r.Results != nil {
-		response["results"] = map[string]interface{}{
+		resultsMap := map[string]interface{}{
 			"total":  r.Results.Total,
 			"passed": r.Results.Passed,
 			"failed": r.Results.Failed,
 			"errors": r.Results.Errors,
 		}
+
+		if perRequirement != nil {
+			pr := make(map[string]string, len(perRequirement))
+			for reqID, status := range perRequirement {
+				pr[reqID] = string(status)
+			}
+			resultsMap["perRequirement"] = pr
+		}
+
+		response["results"] = resultsMap
 	}
 
 	responseJSON, err := json.Marshal(response)
@@ -273,7 +291,24 @@ func handleTestPolicy(
 			)
 		}
 
-		return buildTestPolicyResponse(result)
+		// Compute per-requirement test attribution.
+		// Note: MCP receives policy content as a string (not from a directory),
+		// so contentDir and mappingPath are empty — only convention-based mapping
+		// applies. Override mapping files are supported via the CLI only.
+		// Degrade gracefully on attribution failure — return test results
+		// without per-requirement data rather than aborting the response.
+		// This aligns with CLI behavior at pack.go:240 which logs a WARNING
+		// and continues.
+		var perReq map[string]coverage.RequirementTestStatus
+		if result.Results != nil {
+			var attrErr error
+			perReq, attrErr = coverage.AttributeTests("", "", result.Results)
+			if attrErr != nil {
+				log.Printf("WARNING: test attribution failed: %v", attrErr)
+			}
+		}
+
+		return buildTestPolicyResponse(result, perReq)
 	}
 }
 
