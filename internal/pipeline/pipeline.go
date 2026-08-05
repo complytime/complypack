@@ -4,9 +4,11 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/registry"
 	"github.com/complytime/complypack/internal/requirement"
 	"github.com/complytime/complypack/internal/source"
 )
@@ -20,6 +22,12 @@ type LoadResult struct {
 
 	// Resolved maps policy IDs to their fully resolved policies.
 	Resolved map[string]*requirement.ResolvedPolicy
+
+	// PolicySources maps each policy ID to the source string that
+	// provided it. BuildProvenance uses this to distinguish OCI bundle
+	// sources (whose authoritative provenance is the bundle reference)
+	// from file sources (whose provenance is the MappingReference URLs).
+	PolicySources map[string]string
 }
 
 // LoadAndResolve loads Gemara artifacts from all configured sources,
@@ -31,22 +39,30 @@ func LoadAndResolve(
 	cacheDir string,
 ) (*LoadResult, error) {
 	loaded := requirement.NewArtifactSet()
+	policySources := make(map[string]string)
+	var loadErrs []error
 	for _, entry := range sources {
+		name := registry.RedactCredentials(entry.Source)
 		src, err := source.LoadArtifacts(
 			ctx, entry.Source, entry.PlainHTTP, cacheDir,
 		)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"failed to load artifacts from %s: %w",
-				entry.Source, err,
-			)
+			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
+			continue
+		}
+		for id := range src.Policies {
+			policySources[id] = entry.Source
 		}
 		if err := loaded.Merge(src); err != nil {
-			return nil, fmt.Errorf(
-				"failed to merge artifacts from %s: %w",
-				entry.Source, err,
-			)
+			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
+			continue
 		}
+	}
+	// Report all load/merge failures at once so every unreachable or
+	// malformed source is named in a single joined error. A load failure
+	// aborts the whole operation: no partial result is returned.
+	if len(loadErrs) > 0 {
+		return nil, errors.Join(loadErrs...)
 	}
 
 	resolved := make(map[string]*requirement.ResolvedPolicy)
@@ -62,7 +78,8 @@ func LoadAndResolve(
 	}
 
 	return &LoadResult{
-		Artifacts: loaded,
-		Resolved:  resolved,
+		Artifacts:     loaded,
+		Resolved:      resolved,
+		PolicySources: policySources,
 	}, nil
 }
