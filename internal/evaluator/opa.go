@@ -54,12 +54,12 @@ func (o *OPA) Test(ctx context.Context, files map[string]string) (*TestResults, 
 		return nil, err
 	}
 
-	// Convert from tester.Results to evaluator.TestResults
 	return &TestResults{
-		Total:  results.Total,
-		Passed: results.Passed,
-		Failed: results.Failed,
-		Errors: results.Errors,
+		Total:   results.Total,
+		Passed:  results.Passed,
+		Failed:  results.Failed,
+		Errors:  results.Errors,
+		Details: results.Details,
 	}, nil
 }
 

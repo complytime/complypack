@@ -8,6 +8,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/complytime/complypack/internal/testresult"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,6 +133,60 @@ allow if {
 		assert.Equal(t, 0, results.Passed)
 		assert.Equal(t, 1, results.Failed)
 		assert.NotEmpty(t, results.Errors)
+	})
+
+	t.Run("details propagated from tester", func(t *testing.T) {
+		files := map[string]string{
+			"policy_test.rego": `package policy.ac_2_1_test
+import rego.v1
+
+test_pass if {
+	allow with input as {"user": "admin"}
+}
+
+test_fail if {
+	allow with input as {"user": "guest"}
+}
+
+allow if {
+	input.user == "admin"
+}`,
+		}
+
+		results, err := opa.Test(ctx, files)
+		require.NoError(t, err)
+		assert.Equal(t, 2, results.Total)
+		assert.Equal(t, 1, results.Passed)
+		assert.Equal(t, 1, results.Failed)
+
+		// Verify details are propagated
+		require.Len(t, results.Details, 2)
+		for _, d := range results.Details {
+			assert.Equal(t, "data.policy.ac_2_1_test", d.Package, "package should be propagated")
+			assert.NotEmpty(t, d.Name, "test name should be propagated")
+			assert.NotEmpty(t, d.Location, "location should be propagated")
+		}
+
+		// Find passing and failing
+		var pass, fail *testresult.Detail
+		for i := range results.Details {
+			if results.Details[i].Passed {
+				pass = &results.Details[i]
+			} else {
+				fail = &results.Details[i]
+			}
+		}
+		require.NotNil(t, pass)
+		require.NotNil(t, fail)
+		assert.Empty(t, pass.Error)
+		assert.NotEmpty(t, fail.Error)
+	})
+
+	t.Run("empty details for empty files", func(t *testing.T) {
+		results, err := opa.Test(ctx, map[string]string{})
+		require.NoError(t, err)
+		assert.NotNil(t, results.Details, "Details should not be nil")
+		assert.Empty(t, results.Details, "Details should be empty")
 	})
 }
 

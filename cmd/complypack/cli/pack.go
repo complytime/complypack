@@ -9,9 +9,12 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"sort"
 
 	"cuelang.org/go/cue"
+
 	"github.com/complytime/complypack/internal/config"
+	"github.com/complytime/complypack/internal/coverage"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/packer"
 	"github.com/complytime/complypack/internal/prepack"
@@ -231,6 +234,23 @@ func runPrePackValidation(ctx context.Context, cfg *config.ComplyPackConfig, con
 	if result.TestResults != nil {
 		log.Printf("  tests: %d passed, %d failed (of %d)",
 			result.TestResults.Passed, result.TestResults.Failed, result.TestResults.Total)
+
+		// Compute per-requirement test attribution
+		perReq, attrErr := coverage.AttributeTests(contentDir, "", result.TestResults)
+		if attrErr != nil {
+			log.Printf("  WARNING: test attribution failed: %v", attrErr)
+		} else if len(perReq) > 0 {
+			// Sort requirement IDs for deterministic output
+			reqIDs := make([]string, 0, len(perReq))
+			for id := range perReq {
+				reqIDs = append(reqIDs, id)
+			}
+			sort.Strings(reqIDs)
+			for _, id := range reqIDs {
+				log.Printf("    %s: %s", id, perReq[id])
+			}
+		}
+
 		if result.TestResults.Failed > 0 {
 			for _, e := range result.TestResults.Errors {
 				log.Printf("    %s", e)
