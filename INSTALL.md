@@ -118,6 +118,24 @@ a new server with the following configuration:
 }
 ```
 
+### Lola (skills and commands)
+
+Install skills and commands into your project using
+[lola](https://lobstertrap.org/lola/):
+
+```bash
+lola mod add https://github.com/complytime/complypack.git
+lola install complypack -a cursor --scope project
+```
+
+This installs skills into `.cursor/skills/` and commands into
+`.cursor/commands/`. After installation, the `/comply-setup`,
+`/comply-pipeline`, and `/comply-pack` commands are available in Cursor.
+
+> **Note:** The MCP server still requires separate configuration. Run
+> `/comply-setup` after installation to generate the MCP config, or
+> configure it manually as described above.
+
 ## Gemini CLI
 
 Install the extension:
@@ -191,10 +209,17 @@ Or use the setup command to generate it interactively:
 
 ## Lola (any AI assistant)
 
-Install the complypack module with [lola](https://lobstertrap.org/lola/):
+Register the complypack module with [lola](https://lobstertrap.org/lola/):
 
 ```bash
 lola mod add https://github.com/complytime/complypack.git
+```
+
+Then install for your assistant:
+
+### OpenCode
+
+```bash
 lola install complypack -a opencode --scope project
 ```
 
@@ -202,12 +227,26 @@ This installs skills and commands into `.opencode/skills/` and
 `.opencode/commands/`. After installation, the `/comply-setup`,
 `/comply-pipeline`, and `/comply-pack` commands are available in OpenCode.
 
+### Cursor
+
+```bash
+lola install complypack -a cursor --scope project
+```
+
+This installs skills into `.cursor/skills/` and commands into
+`.cursor/commands/`. After installation, the `/comply-setup`,
+`/comply-pipeline`, and `/comply-pack` commands are available in Cursor.
+
+### Updating
+
 To update after complypack releases new skills:
 
 ```bash
 lola mod update complypack
-lola install complypack -a opencode --scope project
+lola install complypack -a <assistant> --scope project
 ```
+
+Replace `<assistant>` with `opencode`, `cursor`, or the assistant you use.
 
 > **Note:** The MCP server still requires separate configuration. Run
 > `/comply-setup` after installation to generate the MCP config, or
