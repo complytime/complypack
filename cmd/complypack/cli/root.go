@@ -33,6 +33,8 @@ func New() *cobra.Command {
 	cmd.AddCommand(triageCmd())
 	cmd.AddCommand(deltaCmd())
 	cmd.AddCommand(applicabilityCmd())
+	cmd.AddCommand(validatePolicyCmd())
+	cmd.AddCommand(testPolicyCmd())
 
 	return cmd
 }

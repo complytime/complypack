@@ -64,6 +64,19 @@ func parseSourceFlags(sources []string) ([]config.GemaraSourceEntry, error) {
 	return entries, nil
 }
 
+// buildSchemaRefs constructs schema references for schema loading.
+// If --schema flags are provided, they are parsed. Otherwise, a
+// default ref for the given platform is created (relying on the
+// embedded schema index for resolution).
+func buildSchemaRefs(
+	platform string, schemaFlags []string,
+) ([]config.SchemaRef, error) {
+	if len(schemaFlags) > 0 {
+		return parseSchemaFlags(schemaFlags)
+	}
+	return []config.SchemaRef{{Platform: platform}}, nil
+}
+
 // parseSchemaFlags converts --schema flag values into SchemaRef values.
 //
 //   - "kubernetes"                        -> SchemaRef{Platform: "kubernetes"} (embedded)
