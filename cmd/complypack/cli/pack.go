@@ -195,15 +195,15 @@ func resolveProvenance(ctx context.Context, cfg *config.ComplyPackConfig, cacheD
 
 	// Resolution can fetch remote sources and run up to packResolveTimeout;
 	// log progress so the operator is not left staring at a silent command.
-	log.Printf("Resolving %d gemara source(s)...", len(cfg.Gemara.Sources))
+	slog.Info("Resolving gemara sources", "count", len(cfg.Gemara.Sources))
 	result, err := pipeline.LoadAndResolve(ctx, cfg.Gemara.Sources, resolvedCacheDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolving gemara sources: %w", err)
 	}
-	log.Printf("Resolved %d gemara source(s), recorded provenance for %d policy(ies).",
-		len(cfg.Gemara.Sources), len(result.Resolved))
+	slog.Info("Resolved gemara sources",
+		"sources", len(cfg.Gemara.Sources), "policies", len(result.Resolved))
 
-	return pipeline.BuildProvenance(result.Resolved), nil
+	return pipeline.BuildProvenance(result.Resolved, result.PolicySources), nil
 }
 
 // runPrePackValidation runs the 3-stage validation pipeline before packing.

@@ -22,6 +22,12 @@ type LoadResult struct {
 
 	// Resolved maps policy IDs to their fully resolved policies.
 	Resolved map[string]*requirement.ResolvedPolicy
+
+	// PolicySources maps each policy ID to the source string that
+	// provided it. BuildProvenance uses this to distinguish OCI bundle
+	// sources (whose authoritative provenance is the bundle reference)
+	// from file sources (whose provenance is the MappingReference URLs).
+	PolicySources map[string]string
 }
 
 // LoadAndResolve loads Gemara artifacts from all configured sources,
@@ -33,15 +39,19 @@ func LoadAndResolve(
 	cacheDir string,
 ) (*LoadResult, error) {
 	loaded := requirement.NewArtifactSet()
+	policySources := make(map[string]string)
 	var loadErrs []error
 	for _, entry := range sources {
-		name := SanitizeSourceID(entry.Source)
+		name := registry.RedactCredentials(entry.Source)
 		src, err := source.LoadArtifacts(
 			ctx, entry.Source, entry.PlainHTTP, cacheDir,
 		)
 		if err != nil {
 			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
 			continue
+		}
+		for id := range src.Policies {
+			policySources[id] = entry.Source
 		}
 		if err := loaded.Merge(src); err != nil {
 			loadErrs = append(loadErrs, fmt.Errorf("source %s: %w", name, err))
@@ -68,19 +78,8 @@ func LoadAndResolve(
 	}
 
 	return &LoadResult{
-		Artifacts: loaded,
-		Resolved:  resolved,
+		Artifacts:     loaded,
+		Resolved:      resolved,
+		PolicySources: policySources,
 	}, nil
-}
-
-// SanitizeSourceID strips any embedded credentials (userinfo) from a source
-// identifier so that error messages naming a failed source never leak
-// registry usernames or passwords declared in the source string
-// (CWE-209: Information Exposure Through an Error Message).
-//
-// The path/host portion is preserved so the operator can still identify
-// which source failed. Sources without recognizable userinfo (plain file
-// paths, credential-free OCI references) are returned unchanged.
-func SanitizeSourceID(source string) string {
-	return registry.RedactCredentials(source)
 }
