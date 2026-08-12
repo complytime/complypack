@@ -73,6 +73,48 @@ func FormatCUEDefinitions(val cue.Value) []byte {
 	return []byte(sb.String())
 }
 
+// ValidateData validates arbitrary data against a compiled CUE schema
+// using CUE unification. Returns nil when data conforms to the schema,
+// or a list of human-readable error strings describing violations.
+func ValidateData(
+	data map[string]interface{}, cueSchema cue.Value,
+) []string {
+	cueCtx := cuecontext.New()
+	dataVal := cueCtx.Encode(data)
+	if dataVal.Err() != nil {
+		return []string{
+			fmt.Sprintf(
+				"failed to encode data: %v", dataVal.Err(),
+			),
+		}
+	}
+
+	unified := cueSchema.Unify(dataVal)
+	if err := unified.Validate(cue.Concrete(true)); err != nil {
+		return collectCUEErrors(err)
+	}
+
+	return nil
+}
+
+// collectCUEErrors extracts individual error messages from a CUE
+// error, which may wrap multiple validation failures.
+func collectCUEErrors(err error) []string {
+	type errorList interface {
+		Unwrap() []error
+	}
+
+	var errors []string
+	if el, ok := err.(errorList); ok {
+		for _, e := range el.Unwrap() {
+			errors = append(errors, e.Error())
+		}
+	} else {
+		errors = append(errors, err.Error())
+	}
+	return errors
+}
+
 // BuildCUEFromBytes compiles CUE bytes into a cue.Value.
 func BuildCUEFromBytes(data []byte) (cue.Value, error) {
 	ctx := cuecontext.New()

@@ -4,15 +4,12 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"cuelang.org/go/cue"
-	"github.com/complytime/complypack/internal/config"
-	"github.com/complytime/complypack/internal/schema"
+	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -137,11 +134,11 @@ func TestTestPolicyCommand_InvalidTestDataJSON(t *testing.T) {
 // --- Output formatter tests ---
 
 func TestWriteTestPolicyJSON_TestsExecuted(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  5,
 			Passed: 3,
 			Failed: 2,
@@ -150,7 +147,7 @@ func TestWriteTestPolicyJSON_TestsExecuted(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyJSON(&buf, result)
+	err := writeTestPolicyJSON(&buf, &result)
 	require.NoError(t, err)
 
 	var parsed map[string]interface{}
@@ -169,14 +166,14 @@ func TestWriteTestPolicyJSON_TestsExecuted(t *testing.T) {
 }
 
 func TestWriteTestPolicyJSON_TestDataInvalid(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  false,
-		testDataErrors: []string{"input.kind: invalid value"},
-		testsExecuted:  false,
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  false,
+		TestDataErrors: []string{"input.kind: invalid value"},
+		TestsExecuted:  false,
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyJSON(&buf, result)
+	err := writeTestPolicyJSON(&buf, &result)
 	require.NoError(t, err)
 
 	var parsed map[string]interface{}
@@ -191,11 +188,11 @@ func TestWriteTestPolicyJSON_TestDataInvalid(t *testing.T) {
 }
 
 func TestWriteTestPolicyJSON_NoTestData(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  1,
 			Passed: 1,
 			Failed: 0,
@@ -204,7 +201,7 @@ func TestWriteTestPolicyJSON_NoTestData(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyJSON(&buf, result)
+	err := writeTestPolicyJSON(&buf, &result)
 	require.NoError(t, err)
 
 	var parsed map[string]interface{}
@@ -216,11 +213,11 @@ func TestWriteTestPolicyJSON_NoTestData(t *testing.T) {
 }
 
 func TestWriteTestPolicyText_Pass(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  3,
 			Passed: 3,
 			Failed: 0,
@@ -229,7 +226,7 @@ func TestWriteTestPolicyText_Pass(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyText(&buf, result)
+	err := writeTestPolicyText(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -238,11 +235,11 @@ func TestWriteTestPolicyText_Pass(t *testing.T) {
 }
 
 func TestWriteTestPolicyText_Fail(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  3,
 			Passed: 1,
 			Failed: 2,
@@ -251,7 +248,7 @@ func TestWriteTestPolicyText_Fail(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyText(&buf, result)
+	err := writeTestPolicyText(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -261,14 +258,14 @@ func TestWriteTestPolicyText_Fail(t *testing.T) {
 }
 
 func TestWriteTestPolicyText_DataInvalid(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  false,
-		testDataErrors: []string{"bad field"},
-		testsExecuted:  false,
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  false,
+		TestDataErrors: []string{"bad field"},
+		TestsExecuted:  false,
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyText(&buf, result)
+	err := writeTestPolicyText(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -277,14 +274,14 @@ func TestWriteTestPolicyText_DataInvalid(t *testing.T) {
 }
 
 func TestWriteTestPolicyText_NotExecuted(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  false,
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  false,
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyText(&buf, result)
+	err := writeTestPolicyText(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -292,11 +289,11 @@ func TestWriteTestPolicyText_NotExecuted(t *testing.T) {
 }
 
 func TestWriteTestPolicyHuman_Pass(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  2,
 			Passed: 2,
 			Failed: 0,
@@ -305,7 +302,7 @@ func TestWriteTestPolicyHuman_Pass(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyHuman(&buf, result)
+	err := writeTestPolicyHuman(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -313,11 +310,11 @@ func TestWriteTestPolicyHuman_Pass(t *testing.T) {
 }
 
 func TestWriteTestPolicyHuman_Fail(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  true,
-		results: &testResultDetail{
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
 			Total:  3,
 			Passed: 1,
 			Failed: 2,
@@ -326,7 +323,7 @@ func TestWriteTestPolicyHuman_Fail(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyHuman(&buf, result)
+	err := writeTestPolicyHuman(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -335,14 +332,14 @@ func TestWriteTestPolicyHuman_Fail(t *testing.T) {
 }
 
 func TestWriteTestPolicyHuman_DataInvalid(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  false,
-		testDataErrors: []string{"error1"},
-		testsExecuted:  false,
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  false,
+		TestDataErrors: []string{"error1"},
+		TestsExecuted:  false,
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyHuman(&buf, result)
+	err := writeTestPolicyHuman(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -351,14 +348,14 @@ func TestWriteTestPolicyHuman_DataInvalid(t *testing.T) {
 }
 
 func TestWriteTestPolicyHuman_NotExecuted(t *testing.T) {
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: []string{},
-		testsExecuted:  false,
+	result := evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  false,
 	}
 
 	var buf bytes.Buffer
-	err := writeTestPolicyHuman(&buf, result)
+	err := writeTestPolicyHuman(&buf, &result)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -477,73 +474,75 @@ func TestTestPolicyEndToEnd_HumanFormat(t *testing.T) {
 	assert.Contains(t, output, "0/0 tests passed")
 }
 
-// --- CUE validation tests ---
+func TestTestPolicyEndToEnd_InvalidFormat(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+	policyPath := writePolicyFile(
+		t, dir, regoValidPolicyCLI,
+	)
 
-func TestValidateTestData_Valid(t *testing.T) {
-	// Load a real CUE schema
-	refs := []testSchemaRef{{platform: "kubernetes-pod"}}
-	cueSchema := loadTestCUESchema(t, refs)
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{
+		"test-policy", policyPath,
+		"--platform", "kubernetes-pod",
+		"--format", "bad-format",
+	})
 
-	testData := map[string]interface{}{
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bad-format")
+}
+
+func TestTestPolicyEndToEnd_InvalidTestData(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+	policyPath := writePolicyFile(
+		t, dir, regoValidPolicyCLI,
+	)
+
+	// Write test-data that violates the CUE schema
+	testDataPath := filepath.Join(
+		dir, "bad-data.json",
+	)
+	badJSON := `{
 		"apiVersion": "v1",
-		"kind":       "Pod",
-		"metadata": map[string]interface{}{
-			"name": "test-pod",
-		},
-		"spec": map[string]interface{}{
-			"containers": []interface{}{
-				map[string]interface{}{
-					"name":  "test",
-					"image": "nginx:latest",
-				},
-			},
-		},
-	}
+		"kind": "Pod",
+		"metadata": {"name": "test"},
+		"spec": {"containers": "not-a-list"}
+	}`
+	require.NoError(t, os.WriteFile(
+		testDataPath, []byte(badJSON), 0600,
+	))
 
-	errs := validateTestData(testData, cueSchema)
-	assert.Empty(t, errs)
-}
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{
+		"test-policy", policyPath,
+		"--platform", "kubernetes-pod",
+		"--test-data", testDataPath,
+		"--format", "json",
+	})
 
-func TestValidateTestData_Invalid(t *testing.T) {
-	// Load a real CUE schema
-	refs := []testSchemaRef{{platform: "kubernetes-pod"}}
-	cueSchema := loadTestCUESchema(t, refs)
+	err := root.Execute()
+	require.ErrorIs(t, err, errTestsFailed,
+		"should return non-zero exit for bad test data")
 
-	// Test data with a field that violates the schema
-	testData := map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "Pod",
-		"metadata": map[string]interface{}{
-			"name": "test-pod",
-		},
-		"spec": map[string]interface{}{
-			"containers": "not-a-list",
-		},
-	}
-
-	errs := validateTestData(testData, cueSchema)
-	assert.NotEmpty(t, errs, "should report validation errors")
-}
-
-// testSchemaRef is a minimal struct for test schema loading.
-type testSchemaRef struct {
-	platform string
-}
-
-// loadTestCUESchema loads a CUE schema for testing.
-func loadTestCUESchema(t *testing.T, refs []testSchemaRef) cue.Value {
-	t.Helper()
-
-	var configRefs []config.SchemaRef
-	for _, r := range refs {
-		configRefs = append(configRefs, config.SchemaRef{Platform: r.platform})
-	}
-
-	ctx := context.Background()
-	_, cueSchemas, err := schema.LoadFromConfig(ctx, configRefs, schema.DefaultRegistry())
+	var parsed map[string]interface{}
+	err = json.Unmarshal(stdout.Bytes(), &parsed)
 	require.NoError(t, err)
+	assert.Equal(t, false, parsed["testDataValid"])
+	assert.Equal(t, false, parsed["testsExecuted"])
 
-	cueSchema, ok := cueSchemas[refs[0].platform]
-	require.True(t, ok, "schema should be loaded for platform %s", refs[0].platform)
-	return cueSchema
+	tdErrors, ok :=
+		parsed["testDataErrors"].([]interface{})
+	require.True(t, ok)
+	assert.NotEmpty(t, tdErrors,
+		"should report test data errors")
 }

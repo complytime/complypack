@@ -5,19 +5,23 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
-	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/spf13/cobra"
 )
 
-// testPolicyRunParams holds parsed CLI parameters for the test-policy command.
+// errTestsFailed is returned when test execution
+// completes but tests failed or test data was invalid.
+// It triggers a non-zero exit code.
+var errTestsFailed = errors.New("policy tests failed")
+
+// testPolicyRunParams holds parsed CLI parameters
+// for the test-policy command.
 type testPolicyRunParams struct {
 	policyFile   string
 	platform     string
@@ -26,22 +30,6 @@ type testPolicyRunParams struct {
 	testDataFile string
 	format       string
 	stdout       io.Writer
-}
-
-// testPolicyResult holds the aggregated test results.
-type testPolicyResult struct {
-	testDataValid  bool
-	testDataErrors []string
-	testsExecuted  bool
-	results        *testResultDetail
-}
-
-// testResultDetail holds test execution counts.
-type testResultDetail struct {
-	Total  int      `json:"total"`
-	Passed int      `json:"passed"`
-	Failed int      `json:"failed"`
-	Errors []string `json:"errors"`
 }
 
 func testPolicyCmd() *cobra.Command {
@@ -98,7 +86,7 @@ Examples:
 	cmd.Flags().StringArrayVar(&schemas, "schema", nil,
 		"Platform schema override (repeatable, e.g., platform=source)")
 	cmd.Flags().StringVar(&testDataFile, "test-data", "",
-		"Path to JSON test-data file for CUE schema pre-validation")
+		"Path to JSON test-data file for CUE schema pre-validation (omit to skip)")
 	cmd.Flags().StringVarP(&format, "format", "f", "",
 		"Output format: human, text, or json (default: auto-detected)")
 
@@ -113,146 +101,124 @@ Examples:
 	return cmd
 }
 
-func runTestPolicy(ctx context.Context, params testPolicyRunParams) error {
+func runTestPolicy(
+	ctx context.Context,
+	params testPolicyRunParams,
+) error {
 	// Read policy file
 	content, err := os.ReadFile(params.policyFile)
 	if err != nil {
 		return fmt.Errorf("reading policy file: %w", err)
 	}
 
-	result := testPolicyResult{
-		testDataValid:  true,
-		testDataErrors: make([]string, 0),
-		testsExecuted:  false,
-	}
-
-	// Validate test data against CUE schema (when --test-data is provided)
+	// Validate test data against CUE schema when provided
+	var testDataErrors []string
 	if params.testDataFile != "" {
-		testDataBytes, err := os.ReadFile(params.testDataFile)
-		if err != nil {
-			return fmt.Errorf("reading test-data file: %w", err)
-		}
-
-		var testData map[string]interface{}
-		if err := json.Unmarshal(testDataBytes, &testData); err != nil {
-			return fmt.Errorf("parsing test-data JSON: %w", err)
-		}
-
-		// Load CUE schema for validation
-		schemaRefs, err := buildSchemaRefs(params.platform, params.schemas)
+		tdErrs, err := validateTestDataFromFile(
+			ctx, params,
+		)
 		if err != nil {
 			return err
 		}
-
-		_, cueSchemas, err := schema.LoadFromConfig(
-			ctx, schemaRefs, schema.DefaultRegistry(),
-		)
-		if err != nil {
-			return fmt.Errorf("loading schemas: %w", err)
-		}
-
-		cueSchema, ok := cueSchemas[params.platform]
-		if !ok {
-			return fmt.Errorf(
-				"no schema found for platform %q; provide --schema %s=<source>",
-				params.platform, params.platform,
-			)
-		}
-
-		testDataErrs := validateTestData(testData, cueSchema)
-		if len(testDataErrs) > 0 {
-			result.testDataValid = false
-			result.testDataErrors = testDataErrs
-			return writeTestPolicyOutput(params.format, params.stdout, result)
-		}
+		testDataErrors = tdErrs
 	}
 
 	// Resolve evaluator
-	evalRegistry := evaluator.DefaultRegistry()
-	var eval evaluator.Evaluator
-	if params.evalID != "" {
-		eval, err = evalRegistry.Get(params.evalID)
-		if err != nil {
-			return fmt.Errorf("evaluator %q: %w", params.evalID, err)
-		}
-	} else {
-		ids := evalRegistry.IDs()
-		if len(ids) == 0 {
-			return fmt.Errorf("no evaluators registered")
-		}
-		if len(ids) > 1 {
-			return fmt.Errorf(
-				"multiple evaluators available (%s); use --evaluator to select one",
-				strings.Join(ids, ", "),
-			)
-		}
-		eval, _ = evalRegistry.Get(ids[0])
+	eval, err := evaluator.DefaultRegistry().Resolve(
+		params.evalID,
+	)
+	if err != nil {
+		return fmt.Errorf("resolving evaluator: %w", err)
 	}
 
-	filename := "policy" + eval.FileExtension()
-	files := map[string]string{
-		filename: string(content),
-	}
-
-	// Execute tests
-	testResults, err := eval.Test(ctx, files)
+	// Delegate to domain function
+	domainResult, err := evaluator.TestPolicy(
+		ctx, eval, string(content), testDataErrors,
+	)
 	if err != nil {
 		return fmt.Errorf("test execution failed: %w", err)
 	}
 
-	result.testsExecuted = true
-	result.results = &testResultDetail{
-		Total:  testResults.Total,
-		Passed: testResults.Passed,
-		Failed: testResults.Failed,
-		Errors: testResults.Errors,
-	}
-	if result.results.Errors == nil {
-		result.results.Errors = make([]string, 0)
+	if err := writeTestPolicyOutput(
+		params.format, params.stdout, domainResult,
+	); err != nil {
+		return err
 	}
 
-	return writeTestPolicyOutput(params.format, params.stdout, result)
-}
-
-// validateTestData validates test data against a CUE schema using unification.
-func validateTestData(
-	testData map[string]interface{}, cueSchema cue.Value,
-) []string {
-	cueCtx := cuecontext.New()
-	dataVal := cueCtx.Encode(testData)
-	if dataVal.Err() != nil {
-		return []string{
-			fmt.Sprintf("failed to encode test data: %v", dataVal.Err()),
-		}
+	if !domainResult.TestDataValid || hasFailed(domainResult) {
+		return errTestsFailed
 	}
-
-	unified := cueSchema.Unify(dataVal)
-	if err := unified.Validate(cue.Concrete(true)); err != nil {
-		return collectCUEValidationErrors(err)
-	}
-
 	return nil
 }
 
-// collectCUEValidationErrors extracts error messages from a CUE error.
-func collectCUEValidationErrors(err error) []string {
-	type errorList interface {
-		Unwrap() []error
+// hasFailed returns true when test results contain
+// failures or errors.
+func hasFailed(r *evaluator.TestPolicyResult) bool {
+	if !r.TestsExecuted || r.Results == nil {
+		return false
+	}
+	return r.Results.Failed > 0 ||
+		len(r.Results.Errors) > 0
+}
+
+// validateTestDataFromFile reads a JSON test-data file,
+// loads the platform CUE schema, and validates the data
+// using schema.ValidateData. Returns validation errors
+// (if any) or an error for infrastructure failures.
+func validateTestDataFromFile(
+	ctx context.Context,
+	params testPolicyRunParams,
+) ([]string, error) {
+	testDataBytes, err := os.ReadFile(params.testDataFile)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reading test-data file: %w", err,
+		)
 	}
 
-	var errors []string
-	if el, ok := err.(errorList); ok {
-		for _, e := range el.Unwrap() {
-			errors = append(errors, e.Error())
-		}
-	} else {
-		errors = append(errors, err.Error())
+	var testData map[string]interface{}
+	if err := json.Unmarshal(
+		testDataBytes, &testData,
+	); err != nil {
+		return nil, fmt.Errorf(
+			"parsing test-data JSON: %w", err,
+		)
 	}
-	return errors
+
+	schemaRefs, err := buildSchemaRefs(
+		params.platform, params.schemas,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"building schema refs: %w", err,
+		)
+	}
+
+	_, cueSchemas, err := schema.LoadFromConfig(
+		ctx, schemaRefs, schema.DefaultRegistry(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"loading schemas: %w", err,
+		)
+	}
+
+	cueSchema, ok := cueSchemas[params.platform]
+	if !ok {
+		return nil, fmt.Errorf(
+			"no schema found for platform %q;"+
+				" provide --schema %s=<source>",
+			params.platform, params.platform,
+		)
+	}
+
+	return schema.ValidateData(testData, cueSchema), nil
 }
 
 func writeTestPolicyOutput(
-	format string, w io.Writer, result testPolicyResult,
+	format string,
+	w io.Writer,
+	result *evaluator.TestPolicyResult,
 ) error {
 	switch format {
 	case formatJSON:
@@ -263,24 +229,28 @@ func writeTestPolicyOutput(
 		return writeTestPolicyHuman(w, result)
 	default:
 		return fmt.Errorf(
-			"unknown format %q; valid formats: human, text, json",
+			"unknown format %q;"+
+				" valid formats: human, text, json",
 			format,
 		)
 	}
 }
 
-func writeTestPolicyJSON(w io.Writer, result testPolicyResult) error {
+func writeTestPolicyJSON(
+	w io.Writer,
+	result *evaluator.TestPolicyResult,
+) error {
 	response := map[string]interface{}{
-		"testDataValid":  result.testDataValid,
-		"testDataErrors": result.testDataErrors,
-		"testsExecuted":  result.testsExecuted,
+		"testDataValid":  result.TestDataValid,
+		"testDataErrors": result.TestDataErrors,
+		"testsExecuted":  result.TestsExecuted,
 	}
-	if result.results != nil {
+	if result.Results != nil {
 		response["results"] = map[string]interface{}{
-			"total":  result.results.Total,
-			"passed": result.results.Passed,
-			"failed": result.results.Failed,
-			"errors": result.results.Errors,
+			"total":  result.Results.Total,
+			"passed": result.Results.Passed,
+			"failed": result.Results.Failed,
+			"errors": result.Results.Errors,
 		}
 	}
 	enc := json.NewEncoder(w)
@@ -288,70 +258,87 @@ func writeTestPolicyJSON(w io.Writer, result testPolicyResult) error {
 	return enc.Encode(response)
 }
 
-func writeTestPolicyText(w io.Writer, result testPolicyResult) error {
-	if !result.testDataValid {
-		fmt.Fprintln(w, "[FAIL] Test data validation failed")
-		for _, e := range result.testDataErrors {
-			fmt.Fprintf(w, "  [TEST DATA ERROR] %s\n", e)
+func writeTestPolicyText(
+	w io.Writer,
+	result *evaluator.TestPolicyResult,
+) error {
+	if !result.TestDataValid {
+		fmt.Fprintln(w,
+			"[FAIL] Test data validation failed")
+		for _, e := range result.TestDataErrors {
+			fmt.Fprintf(w,
+				"  [TEST DATA ERROR] %s\n", e)
 		}
 		return nil
 	}
 
-	if !result.testsExecuted {
-		fmt.Fprintln(w, "[SKIP] Tests were not executed")
+	if !result.TestsExecuted {
+		fmt.Fprintln(w,
+			"[SKIP] Tests were not executed")
 		return nil
 	}
 
-	if result.results.Failed == 0 && len(result.results.Errors) == 0 {
+	r := result.Results
+	if r.Failed == 0 && len(r.Errors) == 0 {
 		fmt.Fprintf(w, "[PASS] %d/%d tests passed\n",
-			result.results.Passed, result.results.Total)
+			r.Passed, r.Total)
 	} else {
-		fmt.Fprintf(w, "[FAIL] %d/%d tests passed, %d failed\n",
-			result.results.Passed, result.results.Total,
-			result.results.Failed)
+		fmt.Fprintf(w,
+			"[FAIL] %d/%d tests passed, %d failed\n",
+			r.Passed, r.Total, r.Failed)
 	}
 
-	for _, e := range result.results.Errors {
+	for _, e := range r.Errors {
 		fmt.Fprintf(w, "  [ERROR] %s\n", e)
 	}
 
 	return nil
 }
 
-func writeTestPolicyHuman(w io.Writer, result testPolicyResult) error {
-	if !result.testDataValid {
+func writeTestPolicyHuman(
+	w io.Writer,
+	result *evaluator.TestPolicyResult,
+) error {
+	if !result.TestDataValid {
 		fmt.Fprintln(w,
-			styleFail.Render("✗ Test data validation failed"))
+			styleFail.Render(
+				"✗ Test data validation failed"))
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, styleTitle.Render("Test Data Errors"))
-		for _, e := range result.testDataErrors {
-			fmt.Fprintf(w, "  %s %s\n", styleFail.Render("✗"), e)
+		fmt.Fprintln(w,
+			styleTitle.Render("Test Data Errors"))
+		for _, e := range result.TestDataErrors {
+			fmt.Fprintf(w, "  %s %s\n",
+				styleFail.Render("✗"), e)
 		}
 		return nil
 	}
 
-	if !result.testsExecuted {
+	if !result.TestsExecuted {
 		fmt.Fprintln(w,
-			styleDim.Render("Tests were not executed"))
+			styleDim.Render(
+				"Tests were not executed"))
 		return nil
 	}
 
-	if result.results.Failed == 0 && len(result.results.Errors) == 0 {
+	r := result.Results
+	if r.Failed == 0 && len(r.Errors) == 0 {
 		fmt.Fprintln(w, stylePass.Render(
 			fmt.Sprintf("✓ %d/%d tests passed",
-				result.results.Passed, result.results.Total)))
+				r.Passed, r.Total)))
 	} else {
 		fmt.Fprintln(w, styleFail.Render(
-			fmt.Sprintf("✗ %d/%d tests passed, %d failed",
-				result.results.Passed, result.results.Total,
-				result.results.Failed)))
+			fmt.Sprintf(
+				"✗ %d/%d tests passed, %d failed",
+				r.Passed, r.Total, r.Failed)))
 	}
 
-	if len(result.results.Errors) > 0 {
+	if len(r.Errors) > 0 {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, styleTitle.Render("Test Errors"))
-		for _, e := range result.results.Errors {
-			fmt.Fprintf(w, "  %s %s\n", styleFail.Render("✗"), e)
+		fmt.Fprintln(w,
+			styleTitle.Render("Test Errors"))
+		for _, e := range r.Errors {
+			fmt.Fprintf(w, "  %s %s\n",
+				styleFail.Render("✗"), e)
 		}
 	}
 

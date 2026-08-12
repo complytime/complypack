@@ -5,17 +5,25 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/schema"
 	"github.com/spf13/cobra"
 )
 
-// validatePolicyRunParams holds parsed CLI parameters for the validate-policy command.
+// errPolicyInvalid is returned when validation
+// completes successfully but the policy is invalid.
+// It triggers a non-zero exit code.
+var errPolicyInvalid = errors.New(
+	"policy validation failed",
+)
+
+// validatePolicyRunParams holds parsed CLI parameters
+// for the validate-policy command.
 type validatePolicyRunParams struct {
 	policyFile string
 	platform   string
@@ -23,14 +31,6 @@ type validatePolicyRunParams struct {
 	schemas    []string
 	format     string
 	stdout     io.Writer
-}
-
-// validatePolicyResult holds the aggregated validation results.
-type validatePolicyResult struct {
-	valid              bool
-	syntaxErrors       []string
-	contractViolations []map[string]string
-	lintWarnings       []map[string]string
 }
 
 func validatePolicyCmd() *cobra.Command {
@@ -112,90 +112,106 @@ func runValidatePolicy(
 	}
 
 	// Resolve evaluator
-	evalRegistry := evaluator.DefaultRegistry()
-	var eval evaluator.Evaluator
-	if params.evalID != "" {
-		eval, err = evalRegistry.Get(params.evalID)
-		if err != nil {
-			return fmt.Errorf("evaluator %q: %w", params.evalID, err)
-		}
-	} else {
-		ids := evalRegistry.IDs()
-		if len(ids) == 0 {
-			return fmt.Errorf("no evaluators registered")
-		}
-		if len(ids) > 1 {
-			return fmt.Errorf(
-				"multiple evaluators available (%s); use --evaluator to select one",
-				strings.Join(ids, ", "),
-			)
-		}
-		eval, _ = evalRegistry.Get(ids[0])
+	eval, err := evaluator.DefaultRegistry().Resolve(
+		params.evalID,
+	)
+	if err != nil {
+		return fmt.Errorf("resolving evaluator: %w", err)
 	}
 
-	filename := "policy" + eval.FileExtension()
-	policyContent := string(content)
-
-	// Syntax validation
-	syntaxErrs := eval.Validate(filename, policyContent)
-
-	result := validatePolicyResult{
-		syntaxErrors:       make([]string, 0),
-		contractViolations: make([]map[string]string, 0),
-		lintWarnings:       make([]map[string]string, 0),
+	// Load CUE schema for the platform
+	schemaRefs, err := buildSchemaRefs(
+		params.platform, params.schemas,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"building schema refs: %w", err,
+		)
 	}
 
-	for _, e := range syntaxErrs {
-		result.syntaxErrors = append(result.syntaxErrors, e.Error())
+	_, cueSchemas, err := schema.LoadFromConfig(
+		ctx, schemaRefs, schema.DefaultRegistry(),
+	)
+	if err != nil {
+		return fmt.Errorf("loading schemas: %w", err)
 	}
 
-	// Contract and lint checks (only when syntax is valid)
-	if len(syntaxErrs) == 0 {
-		// Load CUE schema for the platform
-		schemaRefs, err := buildSchemaRefs(params.platform, params.schemas)
-		if err != nil {
-			return err
-		}
+	cueSchema, ok := cueSchemas[params.platform]
+	if !ok {
+		return fmt.Errorf(
+			"no schema found for platform %q;"+
+				" provide --schema %s=<source>",
+			params.platform, params.platform,
+		)
+	}
 
-		_, cueSchemas, err := schema.LoadFromConfig(ctx, schemaRefs, schema.DefaultRegistry())
-		if err != nil {
-			return fmt.Errorf("loading schemas: %w", err)
-		}
+	// Delegate to domain function
+	domainResult := evaluator.ValidatePolicy(
+		eval, string(content), cueSchema,
+	)
 
-		cueSchema, ok := cueSchemas[params.platform]
-		if !ok {
-			return fmt.Errorf(
-				"no schema found for platform %q; provide --schema %s=<source>",
-				params.platform, params.platform,
-			)
-		}
+	// Convert to CLI presentation model
+	result := convertValidatePolicyResult(domainResult)
 
-		// Contract validation
-		violations, err := eval.CheckContract(filename, policyContent, cueSchema)
-		if err != nil {
-			return fmt.Errorf("contract check failed: %w", err)
-		}
-		for _, v := range violations {
-			result.contractViolations = append(result.contractViolations, map[string]string{
+	if err := writeValidatePolicyOutput(
+		params.format, params.stdout, result,
+	); err != nil {
+		return err
+	}
+
+	if !result.valid {
+		return errPolicyInvalid
+	}
+	return nil
+}
+
+// convertValidatePolicyResult maps the domain
+// ValidatePolicyResult to the CLI presentation model.
+func convertValidatePolicyResult(
+	dr *evaluator.ValidatePolicyResult,
+) validatePolicyResult {
+	violations := make(
+		[]map[string]string, 0, len(dr.ContractViolations),
+	)
+	for _, v := range dr.ContractViolations {
+		violations = append(
+			violations, map[string]string{
 				"path":     v.Path,
 				"location": v.Location,
-			})
-		}
+			},
+		)
+	}
 
-		// Lint (graceful degradation)
-		lintWarnings, _ := eval.Lint(filename, policyContent)
-		for _, w := range lintWarnings {
-			result.lintWarnings = append(result.lintWarnings, map[string]string{
+	warnings := make(
+		[]map[string]string, 0, len(dr.LintWarnings),
+	)
+	for _, w := range dr.LintWarnings {
+		warnings = append(
+			warnings, map[string]string{
 				"rule":     w.Rule,
 				"message":  w.Message,
 				"location": w.Location,
-			})
-		}
+			},
+		)
 	}
 
-	result.valid = len(result.syntaxErrors) == 0 && len(result.contractViolations) == 0
+	return validatePolicyResult{
+		valid:              dr.Valid,
+		syntaxErrors:       dr.SyntaxErrors,
+		contractViolations: violations,
+		lintWarnings:       warnings,
+		lintErr:            dr.LintErr,
+	}
+}
 
-	return writeValidatePolicyOutput(params.format, params.stdout, result)
+// validatePolicyResult holds the CLI presentation model
+// for validation results.
+type validatePolicyResult struct {
+	valid              bool
+	syntaxErrors       []string
+	contractViolations []map[string]string
+	lintWarnings       []map[string]string
+	lintErr            error
 }
 
 func writeValidatePolicyOutput(
@@ -216,12 +232,17 @@ func writeValidatePolicyOutput(
 	}
 }
 
-func writeValidatePolicyJSON(w io.Writer, result validatePolicyResult) error {
+func writeValidatePolicyJSON(
+	w io.Writer, result validatePolicyResult,
+) error {
 	response := map[string]interface{}{
 		"valid":              result.valid,
 		"syntaxErrors":       result.syntaxErrors,
 		"contractViolations": result.contractViolations,
 		"lintWarnings":       result.lintWarnings,
+	}
+	if result.lintErr != nil {
+		response["lintError"] = result.lintErr.Error()
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -245,11 +266,17 @@ func writeValidatePolicyText(w io.Writer, result validatePolicyResult) error {
 		fmt.Fprintf(w, "  [LINT WARNING] %s: %s at %s\n",
 			lw["rule"], lw["message"], lw["location"])
 	}
+	if result.lintErr != nil {
+		fmt.Fprintf(w,
+			"  [LINT ERROR] %s\n", result.lintErr)
+	}
 
 	return nil
 }
 
-func writeValidatePolicyHuman(w io.Writer, result validatePolicyResult) error {
+func writeValidatePolicyHuman(
+	w io.Writer, result validatePolicyResult,
+) error {
 	if result.valid {
 		fmt.Fprintln(w, stylePass.Render("✓ Policy is valid"))
 	} else {
@@ -275,11 +302,20 @@ func writeValidatePolicyHuman(w io.Writer, result validatePolicyResult) error {
 
 	if len(result.lintWarnings) > 0 {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, styleTitle.Render("Lint Warnings"))
+		fmt.Fprintln(w,
+			styleTitle.Render("Lint Warnings"))
 		for _, lw := range result.lintWarnings {
 			fmt.Fprintf(w, "  %s %s: %s at %s\n",
-				styleWarn.Render("⚠"), lw["rule"], lw["message"], lw["location"])
+				styleWarn.Render("⚠"),
+				lw["rule"], lw["message"],
+				lw["location"])
 		}
+	}
+
+	if result.lintErr != nil {
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "  %s lint: %s\n",
+			styleWarn.Render("⚠"), result.lintErr)
 	}
 
 	return nil

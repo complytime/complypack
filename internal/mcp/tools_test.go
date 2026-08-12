@@ -5,7 +5,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -158,10 +157,13 @@ func TestCreateTestPolicyTool(t *testing.T) {
 	assert.Contains(t, required, "platform")
 }
 
-func TestValidateTestDataAgainstSchema(t *testing.T) {
+func TestValidateDataWithStore(t *testing.T) {
 	// Create resource store with schemas
 	schemaMap, cueSchemaMap := testLoadAllSchemas(t)
-	store := NewResourceStore(map[string]any{}, nil, schemaMap, cueSchemaMap, evaluator.DefaultRegistry())
+	store := NewResourceStore(
+		map[string]any{}, nil, schemaMap,
+		cueSchemaMap, evaluator.DefaultRegistry(),
+	)
 
 	tests := []struct {
 		name        string
@@ -209,27 +211,35 @@ func TestValidateTestDataAgainstSchema(t *testing.T) {
 			testData:    map[string]interface{}{},
 			platform:    "unknown",
 			wantErrors:  true,
-			errContains: "unsupported platform",
+			errContains: "no CUE schema loaded",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := validateTestDataAgainstSchema(tt.testData, tt.platform, store)
-			if tt.wantErrors {
-				assert.NotEmpty(t, errs, "expected validation errors")
-				if tt.errContains != "" {
-					found := false
-					for _, e := range errs {
-						if assert.Contains(t, e, tt.errContains) {
-							found = true
-							break
-						}
-					}
-					assert.True(t, found, "expected error containing %q", tt.errContains)
+			cueSchema, err := store.CUESchema(
+				tt.platform,
+			)
+			if err != nil {
+				if tt.wantErrors {
+					assert.Contains(t,
+						err.Error(),
+						tt.errContains,
+					)
+					return
 				}
+				require.NoError(t, err)
+			}
+
+			errs := schema.ValidateData(
+				tt.testData, cueSchema,
+			)
+			if tt.wantErrors {
+				assert.NotEmpty(t, errs,
+					"expected validation errors")
 			} else {
-				assert.Empty(t, errs, "expected no validation errors")
+				assert.Empty(t, errs,
+					"expected no validation errors")
 			}
 		})
 	}
@@ -237,71 +247,92 @@ func TestValidateTestDataAgainstSchema(t *testing.T) {
 
 func TestBuildValidationResponse(t *testing.T) {
 	tests := []struct {
-		name       string
-		valid      bool
-		syntaxErrs []error
-		violations []evaluator.ContractViolation
-		warnings   []evaluator.LintWarning
-		wantValid  bool
+		name      string
+		input     *evaluator.ValidatePolicyResult
+		wantValid bool
 	}{
 		{
-			name:       "valid policy",
-			valid:      true,
-			syntaxErrs: nil,
-			violations: nil,
-			warnings:   nil,
-			wantValid:  true,
-		},
-		{
-			name:       "syntax errors",
-			valid:      false,
-			syntaxErrs: []error{fmt.Errorf("syntax error at line 5")},
-			violations: nil,
-			warnings:   nil,
-			wantValid:  false,
-		},
-		{
-			name:       "contract violations",
-			valid:      false,
-			syntaxErrs: nil,
-			violations: []evaluator.ContractViolation{
-				{Path: "input.invalid.field", Location: "policy.rego:10:5"},
+			name: "valid policy",
+			input: &evaluator.ValidatePolicyResult{
+				Valid:              true,
+				SyntaxErrors:       []string{},
+				ContractViolations: nil,
+				LintWarnings:       nil,
 			},
-			warnings:  nil,
+			wantValid: true,
+		},
+		{
+			name: "syntax errors",
+			input: &evaluator.ValidatePolicyResult{
+				Valid: false,
+				SyntaxErrors: []string{
+					"syntax error at line 5",
+				},
+				ContractViolations: nil,
+				LintWarnings:       nil,
+			},
+			wantValid: false,
+		},
+		{
+			name: "contract violations",
+			input: &evaluator.ValidatePolicyResult{
+				Valid:        false,
+				SyntaxErrors: []string{},
+				ContractViolations: []evaluator.ContractViolation{
+					{
+						Path:     "input.invalid.field",
+						Location: "policy.rego:10:5",
+					},
+				},
+				LintWarnings: nil,
+			},
 			wantValid: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := buildValidationResponse(tt.valid, tt.syntaxErrs, tt.violations, tt.warnings)
+			result, err := buildValidationResponse(
+				tt.input,
+			)
 			require.NoError(t, err)
 
-			// Parse result content
 			textContent, ok := result.Content[0].(*mcp.TextContent)
 			require.True(t, ok, "expected TextContent")
 
 			var response map[string]interface{}
-			err = json.Unmarshal([]byte(textContent.Text), &response)
+			err = json.Unmarshal(
+				[]byte(textContent.Text), &response,
+			)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantValid, response["valid"])
+			assert.Equal(t,
+				tt.wantValid, response["valid"],
+			)
 		})
 	}
 }
 
-func TestBuildTestDataErrorResponse(t *testing.T) {
-	errors := []string{
-		"input.kind: invalid value",
-		"input.metadata.name: required",
+func TestBuildTestPolicyResponse_DataError(t *testing.T) {
+	input := &evaluator.TestPolicyResult{
+		TestDataValid: false,
+		TestDataErrors: []string{
+			"input.kind: invalid value",
+			"input.metadata.name: required",
+		},
+		TestsExecuted: false,
 	}
 
-	result, err := buildTestDataErrorResponse(errors)
+	result, err := buildTestPolicyResponse(input)
 	require.NoError(t, err)
 
-	// Parse result content
 	var response map[string]interface{}
-	err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+	err = json.Unmarshal(
+		[]byte(
+			result.Content[0].(*mcp.TextContent).Text,
+		),
+		&response,
+	)
 	require.NoError(t, err)
 
 	assert.False(t, response["testDataValid"].(bool))
@@ -310,23 +341,32 @@ func TestBuildTestDataErrorResponse(t *testing.T) {
 	assert.Len(t, testDataErrs, 2)
 }
 
-func TestBuildTestResultsResponse(t *testing.T) {
-	results := &evaluator.TestResults{
-		Total:  5,
-		Passed: 3,
-		Failed: 2,
-		Errors: []string{
-			"test_deny_root: expected denial",
-			"test_labels: assertion failed",
+func TestBuildTestPolicyResponse_Results(t *testing.T) {
+	input := &evaluator.TestPolicyResult{
+		TestDataValid:  true,
+		TestDataErrors: []string{},
+		TestsExecuted:  true,
+		Results: &evaluator.TestResults{
+			Total:  5,
+			Passed: 3,
+			Failed: 2,
+			Errors: []string{
+				"test_deny_root: expected denial",
+				"test_labels: assertion failed",
+			},
 		},
 	}
 
-	result, err := buildTestResultsResponse(results)
+	result, err := buildTestPolicyResponse(input)
 	require.NoError(t, err)
 
-	// Parse result content
 	var response map[string]interface{}
-	err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &response)
+	err = json.Unmarshal(
+		[]byte(
+			result.Content[0].(*mcp.TextContent).Text,
+		),
+		&response,
+	)
 	require.NoError(t, err)
 
 	assert.True(t, response["testDataValid"].(bool))

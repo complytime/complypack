@@ -5,8 +5,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -289,47 +287,6 @@ func TestWriteValidatePolicyHuman_Invalid(t *testing.T) {
 
 // --- End-to-end tests ---
 
-// regoValidPolicyCLI is a syntactically valid Rego policy for CLI tests.
-const regoValidPolicyCLI = `package cli.valid
-
-import rego.v1
-
-deny contains msg if {
-	input.kind == "Pod"
-	not input.metadata.name
-	msg := "Pods must have a name"
-}`
-
-// regoSyntaxErrorPolicyCLI has a deliberate syntax error.
-const regoSyntaxErrorPolicyCLI = `package cli.syntax_error
-
-import rego.v1
-
-deny contains msg if {
-	input.kind == "Pod"
-	not input.metadata.labels["app"]
-	msg := "Pods must have 'app' label"
-  # Missing closing brace`
-
-// regoContractViolationPolicyCLI references a field not in the schema.
-const regoContractViolationPolicyCLI = `package cli.contract_violation
-
-import rego.v1
-
-deny contains msg if {
-	input.kind == "Pod"
-	# This field doesn't exist in Kubernetes schema
-	not input.metadata.invalid_field
-	msg := "Contract violation example"
-}`
-
-func writePolicyFile(t *testing.T, dir, content string) string {
-	t.Helper()
-	path := filepath.Join(dir, "policy.rego")
-	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-	return path
-}
-
 func TestValidatePolicyEndToEnd_ValidPolicy(t *testing.T) {
 	dir := t.TempDir()
 	policyPath := writePolicyFile(t, dir, regoValidPolicyCLI)
@@ -370,7 +327,8 @@ func TestValidatePolicyEndToEnd_SyntaxError(t *testing.T) {
 	})
 
 	err := root.Execute()
-	require.NoError(t, err, "syntax errors are reported in output, not as command error")
+	require.ErrorIs(t, err, errPolicyInvalid,
+		"should return non-zero exit for invalid policy")
 
 	var parsed map[string]interface{}
 	err = json.Unmarshal(stdout.Bytes(), &parsed)
@@ -397,7 +355,8 @@ func TestValidatePolicyEndToEnd_ContractViolation(t *testing.T) {
 	})
 
 	err := root.Execute()
-	require.NoError(t, err, "contract violations are reported in output, not as command error")
+	require.ErrorIs(t, err, errPolicyInvalid,
+		"should return non-zero exit for invalid policy")
 
 	var parsed map[string]interface{}
 	err = json.Unmarshal(stdout.Bytes(), &parsed)
@@ -449,23 +408,25 @@ func TestValidatePolicyEndToEnd_HumanFormat(t *testing.T) {
 	assert.Contains(t, output, "✓ Policy is valid")
 }
 
-// --- Helper function tests ---
-
-func TestBuildSchemaRefs_WithFlags(t *testing.T) {
-	refs, err := buildSchemaRefs(
-		"kubernetes-deployment",
-		[]string{"kubernetes-deployment=cue://example.com/schema"},
+func TestValidatePolicyEndToEnd_InvalidFormat(
+	t *testing.T,
+) {
+	dir := t.TempDir()
+	policyPath := writePolicyFile(
+		t, dir, regoValidPolicyCLI,
 	)
-	require.NoError(t, err)
-	assert.Len(t, refs, 1)
-	assert.Equal(t, "kubernetes-deployment", refs[0].Platform)
-	assert.Equal(t, "cue://example.com/schema", refs[0].Source)
-}
 
-func TestBuildSchemaRefs_WithoutFlags(t *testing.T) {
-	refs, err := buildSchemaRefs("kubernetes-deployment", nil)
-	require.NoError(t, err)
-	assert.Len(t, refs, 1)
-	assert.Equal(t, "kubernetes-deployment", refs[0].Platform)
-	assert.Empty(t, refs[0].Source, "should rely on embedded index")
+	root := New()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{
+		"validate-policy", policyPath,
+		"--platform", "kubernetes-pod",
+		"--format", "invalid-fmt",
+	})
+
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid-fmt")
 }
