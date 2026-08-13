@@ -158,6 +158,52 @@ complypack pack policy/ localhost:5001/test:latest --plain-http
 
 The command reads `evaluator-id` and `version` from `complypack.yaml`. The content directory is tar+gzipped and stored as the artifact's opaque content layer.
 
+### Validate a policy
+
+Validate a policy file for syntax, contract compliance, and lint:
+
+```bash
+# Validate against a platform schema
+complypack validate-policy policy.rego --platform kubernetes-deployment
+
+# JSON output for CI pipelines
+complypack validate-policy policy.rego --platform kubernetes-deployment --format json
+```
+
+Performs three checks in sequence: syntax validation, contract validation (all `input.*` references exist in the schema), and linting. Contract and lint checks are skipped when syntax errors exist. Lint warnings are non-fatal.
+
+**Flags:**
+- `--platform`  Platform schema to validate against (required)
+- `--schema`    Override schema source (format: `platform=uri`, repeatable)
+- `--format`    Output format: `human` (default), `text`, or `json`
+
+**Exit codes:** `0` valid, `1` invalid.
+
+### Test a policy
+
+Run a policy file's test suite with optional test-data schema validation:
+
+```bash
+# Run tests
+complypack test-policy policy.rego --platform kubernetes-deployment
+
+# With test-data validation
+complypack test-policy policy.rego --platform kubernetes-deployment --test-data fixtures.json
+
+# JSON output
+complypack test-policy policy.rego --platform kubernetes-deployment --format json
+```
+
+When `--test-data` is provided, the JSON file is first validated against the platform's CUE schema. If validation fails, tests are not executed.
+
+**Flags:**
+- `--platform`   Platform schema to use (required)
+- `--test-data`  Test data JSON file to validate before running tests
+- `--schema`     Override schema source (format: `platform=uri`, repeatable)
+- `--format`     Output format: `human` (default), `text`, or `json`
+
+**Exit codes:** `0` all tests pass, `1` tests failed or test data invalid.
+
 ### MCP Server
 
 Start the MCP server to expose Gemara catalogs, platform schemas, and policy tools to LLMs:

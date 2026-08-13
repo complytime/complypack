@@ -254,3 +254,31 @@ func TestParseSchemaFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildSchemaRefs_WithFlags(t *testing.T) {
+	refs, err := buildSchemaRefs(
+		"kubernetes-deployment",
+		[]string{
+			"kubernetes-deployment=" +
+				"cue://example.com/schema",
+		},
+	)
+	require.NoError(t, err)
+	assert.Len(t, refs, 1)
+	assert.Equal(t,
+		"kubernetes-deployment", refs[0].Platform)
+	assert.Equal(t,
+		"cue://example.com/schema", refs[0].Source)
+}
+
+func TestBuildSchemaRefs_WithoutFlags(t *testing.T) {
+	refs, err := buildSchemaRefs(
+		"kubernetes-deployment", nil,
+	)
+	require.NoError(t, err)
+	assert.Len(t, refs, 1)
+	assert.Equal(t,
+		"kubernetes-deployment", refs[0].Platform)
+	assert.Empty(t, refs[0].Source,
+		"should rely on embedded index")
+}

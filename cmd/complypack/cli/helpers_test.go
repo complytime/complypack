@@ -4,6 +4,8 @@ package cli
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/complytime/complypack/internal/pipeline"
@@ -12,6 +14,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// --- Shared policy fixtures for CLI tests ---
+
+// regoValidPolicyCLI is a syntactically valid Rego
+// policy for CLI tests.
+const regoValidPolicyCLI = "package cli.valid\n\nimport rego.v1\n\ndeny contains msg if {\n\tinput.kind == \"Pod\"\n\tnot input.metadata.name\n\tmsg := \"Pods must have a name\"\n}"
+
+// regoSyntaxErrorPolicyCLI has a deliberate syntax
+// error (missing closing brace).
+const regoSyntaxErrorPolicyCLI = "package cli.syntax_error\n\nimport rego.v1\n\ndeny contains msg if {\n\tinput.kind == \"Pod\"\n\tnot input.metadata.labels[\"app\"]\n\tmsg := \"Pods must have 'app' label\"\n  # Missing closing brace"
+
+// regoContractViolationPolicyCLI references a field
+// not in the schema.
+const regoContractViolationPolicyCLI = "package cli.contract_violation\n\nimport rego.v1\n\ndeny contains msg if {\n\tinput.kind == \"Pod\"\n\t# This field doesn't exist in Kubernetes schema\n\tnot input.metadata.invalid_field\n\tmsg := \"Contract violation example\"\n}"
+
+func writePolicyFile(
+	t *testing.T, dir, content string,
+) string {
+	t.Helper()
+	path := filepath.Join(dir, "policy.rego")
+	require.NoError(t,
+		os.WriteFile(path, []byte(content), 0600))
+	return path
+}
 
 func TestFindResolvedPolicyCLI_ResolvedPolicy(t *testing.T) {
 	rp := &requirement.ResolvedPolicy{

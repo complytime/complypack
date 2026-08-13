@@ -46,6 +46,27 @@ func (r *Registry) Get(id string) (Evaluator, error) {
 	return e, nil
 }
 
+// Resolve picks an evaluator from the registry. If id is provided,
+// it is looked up directly. If id is empty and exactly one evaluator
+// is registered, it is auto-selected. Otherwise an error listing
+// available options is returned.
+func (r *Registry) Resolve(id string) (Evaluator, error) {
+	if id != "" {
+		return r.Get(id)
+	}
+
+	ids := r.IDs()
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no evaluators registered")
+	}
+	if len(ids) == 1 {
+		return r.Get(ids[0])
+	}
+	return nil, fmt.Errorf(
+		"multiple evaluators available, specify one: %v", ids,
+	)
+}
+
 // IDs returns a sorted list of all registered evaluator IDs.
 func (r *Registry) IDs() []string {
 	r.mu.RLock()
