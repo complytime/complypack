@@ -59,6 +59,10 @@ Output formats:
   text   Plain bracketed labels for CI/grep
   json   Structured JSON matching the MCP validate_policy tool response
 
+Exit codes:
+  0  Policy is valid
+  1  Policy is invalid (syntax errors, contract violations, or both)
+
 Examples:
   complypack validate-policy policy.rego --platform kubernetes-deployment
   complypack validate-policy policy.rego --platform kubernetes-deployment --format json

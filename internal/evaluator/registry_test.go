@@ -78,6 +78,57 @@ func TestIDs(t *testing.T) {
 	assert.Equal(t, []string{"alpha", "beta", "zebra"}, ids, "IDs should be sorted")
 }
 
+func TestResolve(t *testing.T) {
+	t.Run("explicit ID found", func(t *testing.T) {
+		r := NewRegistry()
+		e := &mockEvaluator{id: "opa"}
+		r.Register(e)
+
+		got, err := r.Resolve("opa")
+		require.NoError(t, err)
+		assert.Equal(t, e, got)
+	})
+
+	t.Run("explicit ID not found", func(t *testing.T) {
+		r := NewRegistry()
+		r.Register(&mockEvaluator{id: "opa"})
+
+		_, err := r.Resolve("unknown")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+
+	t.Run("empty ID with no evaluators", func(t *testing.T) {
+		r := NewRegistry()
+
+		_, err := r.Resolve("")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no evaluators registered")
+	})
+
+	t.Run("empty ID auto-selects single evaluator", func(t *testing.T) {
+		r := NewRegistry()
+		e := &mockEvaluator{id: "opa"}
+		r.Register(e)
+
+		got, err := r.Resolve("")
+		require.NoError(t, err)
+		assert.Equal(t, e, got)
+	})
+
+	t.Run("empty ID with multiple evaluators", func(t *testing.T) {
+		r := NewRegistry()
+		r.Register(&mockEvaluator{id: "opa"})
+		r.Register(&mockEvaluator{id: "cel"})
+
+		_, err := r.Resolve("")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "multiple evaluators available")
+		assert.Contains(t, err.Error(), "opa")
+		assert.Contains(t, err.Error(), "cel")
+	})
+}
+
 func TestConcurrentAccess(t *testing.T) {
 	r := NewRegistry()
 

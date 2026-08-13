@@ -57,6 +57,10 @@ Output formats:
   text   Plain bracketed labels for CI/grep
   json   Structured JSON matching the MCP test_policy tool response
 
+Exit codes:
+  0  All tests pass (or no tests executed)
+  1  Tests failed or test data validation failed
+
 Examples:
   complypack test-policy policy.rego --platform kubernetes-deployment
   complypack test-policy policy.rego --platform kubernetes-deployment --test-data fixtures.json
