@@ -13,10 +13,15 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/complytime/complypack/internal/evaluator"
 	"github.com/complytime/complypack/internal/requirement"
+	"github.com/complytime/complypack/internal/testresult"
 	"github.com/gemaraproj/go-gemara"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// ---------------------------------------------------------------------------
+// Helpers for gap-reporting coverage tests
+// ---------------------------------------------------------------------------
 
 // stubEvaluator implements evaluator.Evaluator for testing.
 type stubEvaluator struct {
@@ -126,6 +131,10 @@ func writeRegoFile(t *testing.T, dir, name string) {
 	content := "package " + name + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".rego"), []byte(content), 0o600))
 }
+
+// ---------------------------------------------------------------------------
+// Gap-reporting coverage tests
+// ---------------------------------------------------------------------------
 
 func TestRun_FullCoverage(t *testing.T) {
 	dir := t.TempDir()
@@ -361,7 +370,7 @@ func TestRun_TestEnrichment_Failing(t *testing.T) {
 	require.NotEmpty(t, report.Warnings, "should warn about aggregate attribution")
 	found := false
 	for _, w := range report.Warnings {
-		if strings.Contains(w.Message, "per-requirement attribution is not yet available") {
+		if strings.Contains(w.Message, "use per-requirement attribution for granular status") {
 			found = true
 			break
 		}
@@ -523,5 +532,422 @@ func TestComputeMetrics(t *testing.T) {
 		assert.Equal(t, 0, m.Implemented)
 		assert.Equal(t, 0, m.Gaps)
 		assert.Equal(t, 0.0, m.CoveragePercent, "should be 0 not NaN for empty entries")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Per-requirement test attribution tests
+// ---------------------------------------------------------------------------
+
+func TestNormalizePackageToRequirement(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple two-level",
+			input:    "data.policy.ac_2_1_test",
+			expected: "ac-2.1",
+		},
+		{
+			name:     "single-level",
+			input:    "data.policy.sc_7_test",
+			expected: "sc-7",
+		},
+		{
+			name:     "multi-level",
+			input:    "data.policy.ac_2_1_3_test",
+			expected: "ac-2.1.3",
+		},
+		{
+			name:     "alpha sub-part",
+			input:    "data.policy.ia_5_1_a_test",
+			expected: "ia-5.1.a",
+		},
+		{
+			name:     "non-matching pattern",
+			input:    "data.policy.container_security_test",
+			expected: "",
+		},
+		{
+			name:     "no test suffix",
+			input:    "data.policy.ac_2_1",
+			expected: "ac-2.1",
+		},
+		{
+			name:     "bare segment",
+			input:    "ac_2_1_test",
+			expected: "ac-2.1",
+		},
+		{
+			name:     "deeply nested package path",
+			input:    "data.policy.kubernetes.ac_2_1_test",
+			expected: "ac-2.1",
+		},
+		{
+			name:     "no numeric segments",
+			input:    "data.policy.helpers_test",
+			expected: "",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizePackageToRequirement(tt.input)
+			assert.Equal(t, tt.expected, got, "NormalizePackageToRequirement(%q)", tt.input)
+		})
+	}
+}
+
+func TestBuildConventionMapping(t *testing.T) {
+	t.Run("nil_details", func(t *testing.T) {
+		mapping := BuildConventionMapping(nil)
+		assert.Empty(t, mapping)
+	})
+
+	t.Run("empty_details", func(t *testing.T) {
+		mapping := BuildConventionMapping([]testresult.Detail{})
+		assert.Empty(t, mapping)
+	})
+
+	t.Run("populated_details", func(t *testing.T) {
+		details := []testresult.Detail{
+			{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+			{Package: "data.policy.ac_2_1_test", Name: "test_2", Passed: true}, // duplicate package
+			{Package: "data.policy.sc_7_test", Name: "test_1", Passed: true},
+			{Package: "data.policy.container_security_test", Name: "test_1", Passed: true}, // non-matching
+		}
+
+		mapping := BuildConventionMapping(details)
+
+		// Should have 2 mapped packages (ac_2_1 and sc_7), not container_security.
+		require.Len(t, mapping, 2)
+		assert.Equal(t, []string{"ac-2.1"}, mapping["data.policy.ac_2_1_test"])
+		assert.Equal(t, []string{"sc-7"}, mapping["data.policy.sc_7_test"])
+	})
+}
+
+func TestEnrichWithTestResults(t *testing.T) {
+	t.Run("all_pass", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.ac_2_1_test", Name: "test_2", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Passing, got["ac-2.1"])
+	})
+
+	t.Run("mixed_pass_fail", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.ac_2_1_test", Name: "test_2", Passed: false, Error: "denied"},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Failing, got["ac-2.1"])
+	})
+
+	t.Run("untested_requirement", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+			"data.policy.sc_7_test":   {"sc-7"}, // no test details for this package
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Passing, got["ac-2.1"])
+		assert.Equal(t, Untested, got["sc-7"])
+	})
+
+	t.Run("multi_package_per_requirement_all_pass", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test":   {"ac-2.1"},
+			"data.policy.ac_2_1_a_test": {"ac-2.1"},
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.ac_2_1_a_test", Name: "test_1", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Passing, got["ac-2.1"])
+	})
+
+	t.Run("multi_package_per_requirement_mixed", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test":   {"ac-2.1"},
+			"data.policy.ac_2_1_a_test": {"ac-2.1"},
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.ac_2_1_a_test", Name: "test_1", Passed: false, Error: "failed"},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Failing, got["ac-2.1"])
+	})
+
+	// This mapping is not reachable via BuildConventionMapping (which maps
+	// one package to one requirement). It tests EnrichWithTestResults in
+	// isolation for multi-value mappings loaded via LoadOverrideMapping.
+	t.Run("one_package_maps_to_multiple_requirements", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.shared_test": {"ac-2.1", "sc-7"},
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.shared_test", Name: "test_1", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Passing, got["ac-2.1"])
+		assert.Equal(t, Passing, got["sc-7"])
+	})
+
+	t.Run("nil_mapping", func(t *testing.T) {
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(nil, results)
+		assert.Empty(t, got)
+	})
+
+	t.Run("nil_results", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+		}
+
+		got := EnrichWithTestResults(mapping, nil)
+		assert.Empty(t, got)
+	})
+
+	t.Run("empty_details_backward_compat", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+		}
+		results := &evaluator.TestResults{
+			Total:  5,
+			Passed: 5,
+			// Details is nil - backward compatibility case.
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Untested, got["ac-2.1"])
+	})
+
+	t.Run("mapping_references_unknown_packages", func(t *testing.T) {
+		mapping := PackageMapping{
+			"data.policy.ac_2_1_test": {"ac-2.1"},
+			"data.policy.nonexistent": {"sc-7"}, // no test details for this
+		}
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Passed: true},
+			},
+		}
+
+		got := EnrichWithTestResults(mapping, results)
+		assert.Equal(t, Passing, got["ac-2.1"])
+		assert.Equal(t, Untested, got["sc-7"])
+	})
+}
+
+func TestLoadOverrideMapping(t *testing.T) {
+	t.Run("valid_file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "coverage-mapping.yaml")
+		content := `version: "1"
+mappings:
+  "data.policy.custom_check": ["sc-7"]
+  "data.policy.another_pkg": ["ac-2.1", "ac-2.2"]
+`
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+
+		mapping, err := LoadOverrideMapping(path)
+		require.NoError(t, err)
+		require.Len(t, mapping, 2)
+		assert.Equal(t, []string{"sc-7"}, mapping["data.policy.custom_check"])
+		assert.Len(t, mapping["data.policy.another_pkg"], 2)
+	})
+
+	t.Run("file_not_found", func(t *testing.T) {
+		mapping, err := LoadOverrideMapping("/nonexistent/path.yaml")
+		require.NoError(t, err)
+		assert.Nil(t, mapping)
+	})
+
+	t.Run("malformed_yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "coverage-mapping.yaml")
+		require.NoError(t, os.WriteFile(path, []byte("{{invalid yaml"), 0600))
+
+		_, err := LoadOverrideMapping(path)
+		assert.Error(t, err)
+	})
+
+	t.Run("unsupported_version", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "coverage-mapping.yaml")
+		content := `version: "2"
+mappings:
+  "data.policy.custom_check": ["sc-7"]
+`
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+
+		_, err := LoadOverrideMapping(path)
+		assert.Error(t, err)
+	})
+
+	t.Run("empty_mappings", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "coverage-mapping.yaml")
+		content := `version: "1"
+mappings: {}
+`
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+
+		mapping, err := LoadOverrideMapping(path)
+		require.NoError(t, err)
+		require.NotNil(t, mapping)
+		assert.Empty(t, mapping)
+	})
+}
+
+func TestAttributeTests(t *testing.T) {
+	t.Run("nil_results", func(t *testing.T) {
+		got, err := AttributeTests("", "", nil)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("empty_details", func(t *testing.T) {
+		results := &evaluator.TestResults{Total: 5, Passed: 5}
+		got, err := AttributeTests("", "", results)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("convention_only", func(t *testing.T) {
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.sc_7_test", Name: "test_1", Passed: false, Error: "denied"},
+			},
+		}
+
+		got, err := AttributeTests("", "", results)
+		require.NoError(t, err)
+		assert.Equal(t, Passing, got["ac-2.1"])
+		assert.Equal(t, Failing, got["sc-7"])
+	})
+
+	t.Run("with_override_file", func(t *testing.T) {
+		dir := t.TempDir()
+		overridePath := filepath.Join(dir, "coverage-mapping.yaml")
+		content := `version: "1"
+mappings:
+  "data.policy.custom_check": ["sc-7"]
+`
+		require.NoError(t, os.WriteFile(overridePath, []byte(content), 0600))
+
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+				{Package: "data.policy.custom_check", Name: "test_1", Passed: true},
+			},
+		}
+
+		got, err := AttributeTests(dir, "", results)
+		require.NoError(t, err)
+		assert.Equal(t, Passing, got["ac-2.1"], "convention mapping")
+		assert.Equal(t, Passing, got["sc-7"], "override mapping")
+	})
+
+	t.Run("with_explicit_mapping_path", func(t *testing.T) {
+		dir := t.TempDir()
+		overridePath := filepath.Join(dir, "custom-mapping.yaml")
+		content := `version: "1"
+mappings:
+  "data.policy.custom_check": ["sc-7"]
+`
+		require.NoError(t, os.WriteFile(overridePath, []byte(content), 0600))
+
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.custom_check", Name: "test_1", Passed: true},
+			},
+		}
+
+		got, err := AttributeTests("", overridePath, results)
+		require.NoError(t, err)
+		assert.Equal(t, Passing, got["sc-7"])
+	})
+
+	t.Run("malformed_override_returns_error", func(t *testing.T) {
+		dir := t.TempDir()
+		overridePath := filepath.Join(dir, "coverage-mapping.yaml")
+		require.NoError(t, os.WriteFile(overridePath, []byte("{{invalid"), 0600))
+
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Passed: true},
+			},
+		}
+
+		_, err := AttributeTests(dir, "", results)
+		assert.Error(t, err)
+	})
+
+	t.Run("override_takes_precedence", func(t *testing.T) {
+		dir := t.TempDir()
+		overridePath := filepath.Join(dir, "coverage-mapping.yaml")
+		// Override maps ac_2_1_test to a different requirement.
+		content := `version: "1"
+mappings:
+  "data.policy.ac_2_1_test": ["custom-req"]
+`
+		require.NoError(t, os.WriteFile(overridePath, []byte(content), 0600))
+
+		results := &evaluator.TestResults{
+			Details: []testresult.Detail{
+				{Package: "data.policy.ac_2_1_test", Name: "test_1", Passed: true},
+			},
+		}
+
+		got, err := AttributeTests(dir, "", results)
+		require.NoError(t, err)
+		// Override replaces convention mapping.
+		assert.Equal(t, Passing, got["custom-req"], "override mapping")
+		// Convention mapping should be overridden.
+		assert.NotContains(t, got, "ac-2.1", "convention should be overridden")
 	})
 }
