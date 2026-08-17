@@ -187,25 +187,78 @@ func TestWriteApplicabilityJSON(t *testing.T) {
 	assert.Equal(t, []string{"R3"}, parsed.Ungrouped)
 }
 
-func TestWriteApplicabilityHuman_DelegatesToText(
-	t *testing.T,
-) {
+func TestWriteApplicabilityHuman(t *testing.T) {
+	result := &requirement.ApplicabilityGroupResult{
+		Groups: []requirement.ApplicabilityGroupInfo{
+			{
+				ID:             "maturity-1",
+				Title:          "Maturity Level 1",
+				Description:    "Basic requirements",
+				RequirementIDs: []string{"REQ-001", "REQ-002"},
+			},
+			{
+				ID:             "maturity-2",
+				Title:          "Maturity Level 2",
+				RequirementIDs: []string{"REQ-003"},
+			},
+		},
+		Ungrouped: []string{"REQ-099"},
+	}
+
+	var buf bytes.Buffer
+	err := writeApplicabilityHuman(
+		&buf, "my-catalog", result,
+	)
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	// Verify styled header
+	assert.Contains(t, output, "my-catalog")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+
+	// Verify data passes through
+	assert.Contains(t, output, "Groups:")
+	assert.Contains(t, output, "maturity-1")
+	assert.Contains(t, output, "Maturity Level 1")
+	assert.Contains(t, output, "Basic requirements")
+	assert.Contains(t, output, "REQ-001")
+	assert.Contains(t, output, "REQ-002")
+	assert.Contains(t, output, "maturity-2")
+	assert.Contains(t, output, "REQ-003")
+	assert.Contains(t, output, "Ungrouped:")
+	assert.Contains(t, output, "REQ-099")
+
+	// Verify human output differs from text output
+	var textBuf bytes.Buffer
+	err = writeApplicabilityText(
+		&textBuf, "my-catalog", result,
+	)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, textBuf.String(), buf.String(),
+		"human format should differ from text format")
+}
+
+func TestWriteApplicabilityHuman_NoGroups(t *testing.T) {
 	result := &requirement.ApplicabilityGroupResult{
 		Groups:    []requirement.ApplicabilityGroupInfo{},
 		Ungrouped: []string{},
 	}
 
-	var textBuf, humanBuf bytes.Buffer
-	err := writeApplicabilityText(
-		&textBuf, "cat", result,
+	var buf bytes.Buffer
+	err := writeApplicabilityHuman(
+		&buf, "empty-catalog", result,
 	)
 	require.NoError(t, err)
 
-	err = writeApplicabilityHuman(
-		&humanBuf, "cat", result,
-	)
-	require.NoError(t, err)
-
-	assert.Equal(t, textBuf.String(), humanBuf.String(),
-		"human format should delegate to text for now")
+	output := buf.String()
+	assert.Contains(t, output, "empty-catalog")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+	assert.Contains(t, output, "Groups:")
+	assert.Contains(t, output, "Ungrouped:")
+	// Ungrouped section (with requirement list) should not appear
+	assert.NotContains(t, output, "REQ-")
 }

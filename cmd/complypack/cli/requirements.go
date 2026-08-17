@@ -199,6 +199,18 @@ func writeRequirementsHuman(
 	catalogName string,
 	results []requirement.AssessmentRequirementInfo,
 ) error {
-	// TODO: add styled output with lipgloss formatting.
-	return writeRequirementsText(w, catalogName, results)
+	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Requirements: %s", catalogName)))
+	fmt.Fprintln(w, fmt.Sprintf("  %s", renderMetadata("Count", len(results))))
+
+	for _, r := range results {
+		fmt.Fprintf(w, "\n  %s %s\n", styleControl.Render(r.ID), styleDim.Render(fmt.Sprintf("(control: %s)", r.ControlID)))
+		fmt.Fprintf(w, "    %s\n", r.Text)
+		if len(r.Applicability) > 0 {
+			fmt.Fprintf(w, "    %s %s\n", styleOK.Render("Applicability:"), strings.Join(r.Applicability, ", "))
+		}
+		for k, v := range r.Parameters {
+			fmt.Fprintln(w, "    "+renderMetadata(k, v))
+		}
+	}
+	return nil
 }
