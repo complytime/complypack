@@ -77,6 +77,10 @@ func BuildProvenance(resolved map[string]*requirement.ResolvedPolicy, policySour
 		return provenance[i].PolicyID < provenance[j].PolicyID
 	})
 
+	if len(provenance) == 0 {
+		return nil
+	}
+
 	return provenance
 }
 

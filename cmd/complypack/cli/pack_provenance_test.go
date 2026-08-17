@@ -163,6 +163,6 @@ func TestResolveProvenance(t *testing.T) {
 		}
 		prov, err := resolveProvenance(ctx, cfg, t.TempDir())
 		require.NoError(t, err)
-		assert.Empty(t, prov)
+		assert.Nil(t, prov)
 	})
 }

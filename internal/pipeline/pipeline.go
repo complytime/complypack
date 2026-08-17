@@ -27,6 +27,9 @@ type LoadResult struct {
 	// provided it. BuildProvenance uses this to distinguish OCI bundle
 	// sources (whose authoritative provenance is the bundle reference)
 	// from file sources (whose provenance is the MappingReference URLs).
+	// When multiple sources provide the same policy ID, the last-declared
+	// source wins. This is deterministic (iteration order of the sources
+	// slice is stable) but means earlier sources' provenance is discarded.
 	PolicySources map[string]string
 }
 

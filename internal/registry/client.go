@@ -98,6 +98,11 @@ func stripScheme(ref string) string {
 // '/' of the authority, so passwords containing '@' are fully stripped and a
 // digest reference (repo@sha256:...) that places '@' after the path is left
 // intact. The original scheme casing is preserved.
+//
+// Limitation: per RFC 3986, a scheme must begin with a letter. References
+// whose prefix starts with a digit (e.g. "1abc://user:pass@host") are not
+// recognized as scheme-bearing and the userinfo is passed through unredacted.
+// Such schemes are invalid per the RFC and do not occur in practice.
 func RedactCredentials(ref string) string {
 	scheme, rest := splitScheme(ref)
 
