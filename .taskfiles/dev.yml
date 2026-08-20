@@ -50,14 +50,14 @@ tasks:
     desc: Run golangci-lint
     preconditions:
       - sh: command -v golangci-lint
-        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.2.2"
+        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
     cmd: golangci-lint run ./...
 
   fmt:
     desc: Format Go source files
     preconditions:
       - sh: command -v golangci-lint
-        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.2.2"
+        msg: "golangci-lint is required — install with: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
     cmd: golangci-lint fmt ./...
 
   vet:

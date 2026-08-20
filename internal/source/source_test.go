@@ -142,6 +142,22 @@ func TestLoadArtifacts_OCISourceRequiresRegistry(t *testing.T) {
 	})
 }
 
+// TestLoadArtifacts_FileErrorRedactsCredentials proves a source that falls
+// through to the file loader (e.g. an https:// URL with embedded userinfo,
+// which is not recognized as an OCI reference) does not leak the credential
+// in its error (CWE-209). Both the wrapper and the wrapped os.PathError path
+// must be redacted.
+func TestLoadArtifacts_FileErrorRedactsCredentials(t *testing.T) {
+	ctx := context.Background()
+
+	_, err := LoadArtifacts(ctx, "https://user:supersecret@registry.invalid/org/repo:tag", false, "") //nolint:gosec // test fixture, not real credentials
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "supersecret",
+		"embedded credential must not appear in the file-load error")
+	assert.Contains(t, err.Error(), "registry.invalid",
+		"the redacted source is still identifiable")
+}
+
 func TestLoadBundleArtifacts_InMemoryFallback(t *testing.T) {
 	ctx := context.Background()
 

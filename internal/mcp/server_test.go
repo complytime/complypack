@@ -84,7 +84,9 @@ schemas:
 
 		assert.Error(t, err)
 		assert.Nil(t, srv)
-		assert.Contains(t, err.Error(), "failed to load artifacts")
+		// The batch-error rework names each failed source in the joined error
+		// surfaced through the MCP init path.
+		assert.Contains(t, err.Error(), "source /nonexistent/catalog.yaml")
 	})
 
 	t.Run("fail fast when configured schema source cannot be loaded", func(t *testing.T) {

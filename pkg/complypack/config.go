@@ -28,18 +28,35 @@ type Config struct {
 	Version string `json:"version"`
 
 	// Source links this ComplyPack to the Gemara content it implements.
-	// Optional. Nil for standalone policies.
-	Source *Provenance `json:"source,omitempty"`
+	// Optional. Empty for standalone policies. One entry per resolved policy.
+	Source []Provenance `json:"source,omitempty"`
 }
 
-// Provenance links a ComplyPack to the Gemara content and policy it implements.
+// Provenance links a ComplyPack to a single Gemara policy and the Gemara
+// content that policy imports.
 type Provenance struct {
-	// GemaraContent is the URI or hash of the Gemara catalog.
-	// Examples: "oci://registry/gemara/controls:latest", "sha256:abc123..."
-	GemaraContent string `json:"gemara-content"`
-
-	// PolicyID identifies the policy within the Gemara catalog.
+	// PolicyID identifies the resolved Gemara policy this pack implements.
 	PolicyID string `json:"policy-id"`
+
+	// GemaraContent is the set of Gemara references (catalogs and guidance)
+	// the policy imports. Non-empty.
+	GemaraContent []GemaraRef `json:"gemara-content"`
+}
+
+// GemaraRef records a single Gemara reference (catalog or guidance) imported
+// by a policy. URI values are recorded into the published OCI config blob, so
+// they are sanitized upstream (userinfo/query/fragment stripped, local
+// filesystem paths omitted) before reaching this struct.
+type GemaraRef struct {
+	// URI locates the Gemara content (e.g. an OCI reference). May be empty for
+	// local or url-less references. Sanitized before recording.
+	URI string `json:"uri,omitempty"`
+
+	// Version is the referenced content version. Optional.
+	Version string `json:"version,omitempty"`
+
+	// ReferenceID is the import identifier within the policy. Required.
+	ReferenceID string `json:"reference-id"`
 }
 
 // Validate checks that required Config fields are present and well-formed.
@@ -65,12 +82,17 @@ func (c Config) Validate() error {
 	if !jsonschema.VersionPattern().MatchString(c.Version) {
 		return fmt.Errorf("%w: version %q must be semver (e.g. 1.0.0)", ErrInvalidConfig, c.Version)
 	}
-	if c.Source != nil {
-		if c.Source.GemaraContent == "" {
-			return fmt.Errorf("%w: source.gemara-content is required when source is set", ErrInvalidConfig)
+	for i, prov := range c.Source {
+		if prov.PolicyID == "" {
+			return fmt.Errorf("%w: source[%d].policy-id is required", ErrInvalidConfig, i)
 		}
-		if c.Source.PolicyID == "" {
-			return fmt.Errorf("%w: source.policy-id is required when source is set", ErrInvalidConfig)
+		if len(prov.GemaraContent) == 0 {
+			return fmt.Errorf("%w: source[%d].gemara-content is required when source is set", ErrInvalidConfig, i)
+		}
+		for j, ref := range prov.GemaraContent {
+			if ref.ReferenceID == "" {
+				return fmt.Errorf("%w: source[%d].gemara-content[%d].reference-id is required", ErrInvalidConfig, i, j)
+			}
 		}
 	}
 	return nil
