@@ -91,8 +91,8 @@ github.com/gdamore/encoding v1.0.1 h1:YzKZckdBL6jVt2Gc+5p82qhrGiqMdG/eNs6Wy0u3Uh
 github.com/gdamore/encoding v1.0.1/go.mod h1:0Z0cMFinngz9kS1QfMjCP8TY7em3bZYeeklsSDPivEo=
 github.com/gdamore/tcell v1.4.0 h1:vUnHwJRvcPQa3tzi+0QI4U9JINXYJlOz9yiaiPQ2wMU=
 github.com/gdamore/tcell v1.4.0/go.mod h1:vxEiSDZdW3L+Uhjii9c3375IlDmR05bzxY404ZVSMo0=
-github.com/gemaraproj/go-gemara v0.9.1 h1:C8+81mPM18l68xCS6sLNEj3qsXfuayz6RCOBhVRuIZ8=
-github.com/gemaraproj/go-gemara v0.9.1/go.mod h1:NmeBQdlvekEY/bUlcR2rmX84bb7lLOM/X+TZHUXZzFU=
+github.com/gemaraproj/go-gemara v0.9.2 h1:282xCpJEYzs8ZBqK0JgcR/m1Te5ZQC9a5NS/AuwyYaY=
+github.com/gemaraproj/go-gemara v0.9.2/go.mod h1:NmeBQdlvekEY/bUlcR2rmX84bb7lLOM/X+TZHUXZzFU=
 github.com/gkampitakis/ciinfo v0.3.2 h1:JcuOPk8ZU7nZQjdUhctuhQofk7BGHuIy0c9Ez8BNhXs=
 github.com/gkampitakis/ciinfo v0.3.2/go.mod h1:1NIwaOcFChN4fa/B0hEBdAb6npDlFL8Bwx4dfRLRqAo=
 github.com/gkampitakis/go-diff v1.3.2 h1:Qyn0J9XJSDTgnsgHRdz9Zp24RaJeKMUHg2+PDZZdC4M=

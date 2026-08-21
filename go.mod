@@ -6,7 +6,7 @@ require (
 	cuelang.org/go v0.17.1
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/gemaraproj/go-gemara v0.9.1
+	github.com/gemaraproj/go-gemara v0.9.2
 	github.com/goccy/go-yaml v1.19.2
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/onsi/ginkgo/v2 v2.32.1
