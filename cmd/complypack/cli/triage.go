@@ -180,6 +180,30 @@ func writeTriageHuman(
 	w io.Writer,
 	result *requirement.TriageResult,
 ) error {
-	// TODO: add styled output with lipgloss formatting.
-	return writeTriageText(w, result)
+	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Triage: %s", result.PolicyID)))
+	fmt.Fprintln(w, fmt.Sprintf(" %s  %s  %s", renderMetadata("Automated", result.Counts.Automated),
+		renderMetadata("Manual", result.Counts.Manual),
+		renderMetadata("Total", result.Counts.Total)),
+	)
+
+	if len(result.Automated) > 0 {
+		fmt.Fprintln(w, fmt.Sprintf("\n %s", styleControl.Render("Automated Plans:")))
+		for _, p := range result.Automated {
+			fmt.Fprintf(w, "    %s -> %s (%s)\n", styleOK.Render(p.PlanID),
+				styleControl.Render(p.RequirementID),
+				renderMetadata("method", p.EvaluationMethod),
+			)
+		}
+	}
+
+	if len(result.Manual) > 0 {
+		fmt.Fprintln(w, fmt.Sprintf("\n %s", styleControl.Render("Manual Plans:")))
+		for _, p := range result.Manual {
+			fmt.Fprintf(w, "    %s -> %s\n",
+				styleDim.Render(p.PlanID),
+				styleControl.Render(p.RequirementID),
+			)
+		}
+	}
+	return nil
 }
