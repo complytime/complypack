@@ -202,6 +202,31 @@ func writeApplicabilityHuman(
 	catalogName string,
 	result *requirement.ApplicabilityGroupResult,
 ) error {
-	// TODO: add styled output with lipgloss formatting.
-	return writeApplicabilityText(w, catalogName, result)
+	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Applicability: %s", catalogName)))
+	fmt.Fprintln(w, fmt.Sprintf("  %s  %s", renderMetadata("Groups", len(result.Groups)),
+		renderMetadata("Ungrouped", len(result.Ungrouped))),
+	)
+
+	for _, g := range result.Groups {
+		fmt.Fprintf(w, "\n  %s", styleOK.Render(g.ID))
+		if g.Title != "" {
+			fmt.Fprintf(w, " - %s", styleControl.Render(g.Title))
+		}
+		fmt.Fprintln(w)
+		if g.Description != "" {
+			fmt.Fprintf(w, "    %s\n", styleDim.Render(g.Description))
+		}
+		if len(g.RequirementIDs) > 0 {
+			fmt.Fprintf(w, "    %s: %s\n", styleOK.Render("Requirements"), styleDim.Render(strings.Join(g.RequirementIDs, ", ")))
+		}
+	}
+
+	if len(result.Ungrouped) > 0 {
+		fmt.Fprintln(w, "\n  "+
+			styleWarn.Render("Ungrouped:")+" "+
+			strings.Join(result.Ungrouped, ", "),
+		)
+	}
+
+	return nil
 }

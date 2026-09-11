@@ -20,24 +20,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Output format constants.
-const (
-	formatHuman = "human"
-	formatText  = "text"
-	formatJSON  = "json"
-)
-
-var (
-	styleTitle   = lipgloss.NewStyle().Bold(true)
-	styleControl = lipgloss.NewStyle().Bold(true)
-	stylePass    = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	styleFail    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleGap     = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	styleDim     = lipgloss.NewStyle().Faint(true)
-)
-
 func coverageCmd() *cobra.Command {
 	var (
 		policyName string
@@ -106,23 +88,6 @@ Examples:
 	})
 
 	return cmd
-}
-
-// resolveFormat determines the output format from the flag value and environment.
-// When no flag is provided, it defaults to "text" if NO_COLOR is set, otherwise "human".
-func resolveFormat(flagValue string) (string, error) {
-	if flagValue != "" {
-		switch flagValue {
-		case formatHuman, formatText, formatJSON:
-			return flagValue, nil
-		default:
-			return "", fmt.Errorf("unknown format %q; valid formats: human, text, json", flagValue)
-		}
-	}
-	if os.Getenv("NO_COLOR") != "" {
-		return formatText, nil
-	}
-	return formatHuman, nil
 }
 
 // coverageRunParams holds parsed CLI parameters for the coverage command.
@@ -320,8 +285,7 @@ func plainStatusIndicator(status coverage.RequirementStatus) string {
 
 // writeHuman formats the report as styled text with Unicode symbols and color.
 func writeHuman(w io.Writer, report *coverage.Report) error {
-	fmt.Fprintln(w, styleTitle.Render(fmt.Sprintf("Coverage Report: %s", report.PolicyID)))
-	fmt.Fprintln(w, styleDim.Render(strings.Repeat("━", 50)))
+	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Coverage Report: %s", report.PolicyID)))
 
 	type controlGroup struct {
 		controlID    string
@@ -364,7 +328,7 @@ func writeHuman(w io.Writer, report *coverage.Report) error {
 	}
 
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, styleDim.Render(strings.Repeat("─", 50)))
+	fmt.Fprintln(w, renderSeparator())
 
 	covStyle := coverageStyle(report.Metrics.CoveragePercent)
 	fmt.Fprintf(w, "  %s\n", covStyle.Render(

@@ -180,6 +180,16 @@ func writeDeltaHuman(
 	w io.Writer,
 	report *requirement.DeltaReport,
 ) error {
-	// TODO: add styled output with lipgloss formatting.
-	return writeDeltaText(w, report)
+	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Delta: %s", report.PolicyID)))
+	fmt.Fprintln(w, "  "+renderMetadata("Catalogs Compared", len(report.CatalogsCompared)))
+	fmt.Fprintln(w, "  "+renderMetadata("Comparisons", len(report.Comparisons)))
+
+	for _, c := range report.Comparisons {
+		fmt.Fprintln(w, fmt.Sprintf("\n  %s / %s", styleControl.Render(c.RequirementID), styleDim.Render(c.Label)))
+		fmt.Fprintln(w, fmt.Sprintf("    %s", renderMetadata("Policy value", c.PolicyValue)))
+		if c.RequirementText != "" {
+			fmt.Fprintln(w, fmt.Sprintf("    %s", renderMetadata("Requirement", c.RequirementText)))
+		}
+	}
+	return nil
 }

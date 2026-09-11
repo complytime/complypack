@@ -142,21 +142,81 @@ func TestWriteTriageJSON(t *testing.T) {
 	assert.Equal(t, 1, parsed.Counts.Total)
 }
 
-func TestWriteTriageHuman_DelegatesToText(t *testing.T) {
+func TestWriteTriageHuman(t *testing.T) {
 	result := &requirement.TriageResult{
-		PolicyID:  "test-policy",
-		Automated: []requirement.TriagedPlan{},
-		Manual:    []requirement.TriagedPlan{},
-		Counts:    requirement.TriageCounts{},
+		PolicyID: "test-policy",
+		Automated: []requirement.TriagedPlan{
+			{
+				PlanID:           "plan-1",
+				RequirementID:    "REQ-001",
+				EvaluationMethod: "conftest",
+				Executor:         "opa",
+			},
+		},
+		Manual: []requirement.TriagedPlan{
+			{
+				PlanID:        "plan-2",
+				RequirementID: "REQ-002",
+			},
+		},
+		Counts: requirement.TriageCounts{
+			Automated: 1,
+			Manual:    1,
+			Total:     2,
+		},
 	}
 
-	var textBuf, humanBuf bytes.Buffer
-	err := writeTriageText(&textBuf, result)
+	var buf bytes.Buffer
+	err := writeTriageHuman(&buf, result)
 	require.NoError(t, err)
 
-	err = writeTriageHuman(&humanBuf, result)
+	output := buf.String()
+
+	// Verify styled header
+	assert.Contains(t, output, "test-policy")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+
+	// Verify data passes through
+	assert.Contains(t, output, "plan-1")
+	assert.Contains(t, output, "REQ-001")
+	assert.Contains(t, output, "conftest")
+	assert.Contains(t, output, "plan-2")
+	assert.Contains(t, output, "REQ-002")
+
+	// Verify section headers
+	assert.Contains(t, output, "Automated Plans:")
+	assert.Contains(t, output, "Manual Plans:")
+
+	// Verify human output differs from text output
+	var textBuf bytes.Buffer
+	err = writeTriageText(&textBuf, result)
 	require.NoError(t, err)
 
-	assert.Equal(t, textBuf.String(), humanBuf.String(),
-		"human format should delegate to text for now")
+	assert.NotEqual(t, textBuf.String(), buf.String(),
+		"human format should differ from text format")
+}
+
+func TestWriteTriageHuman_NoPlans(t *testing.T) {
+	result := &requirement.TriageResult{
+		PolicyID:  "empty-policy",
+		Automated: []requirement.TriagedPlan{},
+		Manual:    []requirement.TriagedPlan{},
+		Counts: requirement.TriageCounts{
+			Automated: 0,
+			Manual:    0,
+			Total:     0,
+		},
+	}
+
+	var buf bytes.Buffer
+	err := writeTriageHuman(&buf, result)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "empty-policy")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+	assert.NotContains(t, output, "Automated Plans:")
+	assert.NotContains(t, output, "Manual Plans:")
 }

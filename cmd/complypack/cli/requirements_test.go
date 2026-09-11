@@ -132,26 +132,70 @@ func TestWriteRequirementsJSON_Empty(t *testing.T) {
 	assert.Empty(t, parsed)
 }
 
-func TestWriteRequirementsHuman_DelegatesToText(t *testing.T) {
+func TestWriteRequirementsHuman(t *testing.T) {
 	results := []requirement.AssessmentRequirementInfo{
 		{
-			ID:        "AR-001",
-			ControlID: "CTL-001",
-			Text:      "Some text",
+			ID:            "AR-001",
+			ControlID:     "CTL-001",
+			Text:          "Requirement text one",
+			Applicability: []string{"maturity-1"},
+			Parameters:    map[string]string{"key": "val"},
+		},
+		{
+			ID:        "AR-002",
+			ControlID: "CTL-002",
+			Text:      "Requirement text two",
 		},
 	}
 
-	var textBuf, humanBuf bytes.Buffer
-	err := writeRequirementsText(
-		&textBuf, "cat", results,
+	var buf bytes.Buffer
+	err := writeRequirementsHuman(
+		&buf, "my-catalog", results,
 	)
 	require.NoError(t, err)
 
-	err = writeRequirementsHuman(
-		&humanBuf, "cat", results,
+	output := buf.String()
+
+	// Verify styled header
+	assert.Contains(t, output, "my-catalog")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+
+	// Verify data passes through
+	assert.Contains(t, output, "Count:")
+	assert.Contains(t, output, "AR-001")
+	assert.Contains(t, output, "CTL-001")
+	assert.Contains(t, output, "Requirement text one")
+	assert.Contains(t, output, "maturity-1")
+	assert.Contains(t, output, "key:")
+	assert.Contains(t, output, "val")
+	assert.Contains(t, output, "AR-002")
+	assert.Contains(t, output, "CTL-002")
+	assert.Contains(t, output, "Applicability:")
+
+	// Verify human output differs from text output
+	var textBuf bytes.Buffer
+	err = writeRequirementsText(
+		&textBuf, "my-catalog", results,
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, textBuf.String(), humanBuf.String(),
-		"human format should delegate to text for now")
+	assert.NotEqual(t, textBuf.String(), buf.String(),
+		"human format should differ from text format")
+}
+
+func TestWriteRequirementsHuman_Empty(t *testing.T) {
+	var buf bytes.Buffer
+	err := writeRequirementsHuman(
+		&buf, "empty-catalog",
+		[]requirement.AssessmentRequirementInfo{},
+	)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "empty-catalog")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+	assert.Contains(t, output, "Count:")
+	assert.NotContains(t, output, "Applicability:")
 }

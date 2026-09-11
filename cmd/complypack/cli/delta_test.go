@@ -147,20 +147,67 @@ func TestWriteDeltaJSON(t *testing.T) {
 		parsed.Comparisons[0].PolicyValue)
 }
 
-func TestWriteDeltaHuman_DelegatesToText(t *testing.T) {
+func TestWriteDeltaHuman(t *testing.T) {
 	report := &requirement.DeltaReport{
 		PolicyID:         "test-policy",
+		CatalogsCompared: []string{"catalog-a", "catalog-b"},
+		Comparisons: []requirement.ParameterComparison{
+			{
+				RequirementID:   "REQ-001",
+				Label:           "tls_version",
+				PolicyValue:     "1.2",
+				PolicySource:    "test-policy",
+				RequirementText: "Must use TLS",
+				CatalogSource:   "catalog-a",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := writeDeltaHuman(&buf, report)
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	// Verify styled header
+	assert.Contains(t, output, "test-policy")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+
+	// Verify data passes through
+	assert.Contains(t, output, "Catalogs Compared:")
+	assert.Contains(t, output, "Comparisons:")
+	assert.Contains(t, output, "REQ-001")
+	assert.Contains(t, output, "tls_version")
+	assert.Contains(t, output, "Policy value:")
+	assert.Contains(t, output, "1.2")
+	assert.Contains(t, output, "Requirement:")
+	assert.Contains(t, output, "Must use TLS")
+
+	// Verify human output differs from text output
+	var textBuf bytes.Buffer
+	err = writeDeltaText(&textBuf, report)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, textBuf.String(), buf.String(),
+		"human format should differ from text format")
+}
+
+func TestWriteDeltaHuman_NoComparisons(t *testing.T) {
+	report := &requirement.DeltaReport{
+		PolicyID:         "empty-policy",
 		CatalogsCompared: []string{},
 		Comparisons:      []requirement.ParameterComparison{},
 	}
 
-	var textBuf, humanBuf bytes.Buffer
-	err := writeDeltaText(&textBuf, report)
+	var buf bytes.Buffer
+	err := writeDeltaHuman(&buf, report)
 	require.NoError(t, err)
 
-	err = writeDeltaHuman(&humanBuf, report)
-	require.NoError(t, err)
-
-	assert.Equal(t, textBuf.String(), humanBuf.String(),
-		"human format should delegate to text for now")
+	output := buf.String()
+	assert.Contains(t, output, "empty-policy")
+	assert.Contains(t, output, "━",
+		"human output should contain styled header separator")
+	assert.Contains(t, output, "Catalogs Compared:")
+	assert.Contains(t, output, "Comparisons:")
 }
