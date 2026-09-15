@@ -181,13 +181,13 @@ func writeTriageHuman(
 	result *requirement.TriageResult,
 ) error {
 	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Triage: %s", result.PolicyID)))
-	fmt.Fprintln(w, fmt.Sprintf(" %s  %s  %s", renderMetadata("Automated", result.Counts.Automated),
+	fmt.Fprintf(w, " %s  %s  %s\n", renderMetadata("Automated", result.Counts.Automated),
 		renderMetadata("Manual", result.Counts.Manual),
-		renderMetadata("Total", result.Counts.Total)),
+		renderMetadata("Total", result.Counts.Total),
 	)
 
 	if len(result.Automated) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("\n %s", styleControl.Render("Automated Plans:")))
+		fmt.Fprintf(w, "\n %s\n", styleControl.Render("Automated Plans:"))
 		for _, p := range result.Automated {
 			fmt.Fprintf(w, "    %s -> %s (%s)\n", styleOK.Render(p.PlanID),
 				styleControl.Render(p.RequirementID),
@@ -197,7 +197,7 @@ func writeTriageHuman(
 	}
 
 	if len(result.Manual) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("\n %s", styleControl.Render("Manual Plans:")))
+		fmt.Fprintf(w, "\n %s\n", styleControl.Render("Manual Plans:"))
 		for _, p := range result.Manual {
 			fmt.Fprintf(w, "    %s -> %s\n",
 				styleDim.Render(p.PlanID),

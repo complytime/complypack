@@ -188,7 +188,7 @@ func writeDeltaHuman(
 		fmt.Fprintf(w, "\n  %s / %s\n", styleControl.Render(c.RequirementID), styleDim.Render(c.Label))
 		fmt.Fprintf(w, "    %s\n", renderMetadata("Policy value", c.PolicyValue))
 		if c.RequirementText != "" {
-			fmt.Fprintln(w, fmt.Sprintf("    %s", renderMetadata("Requirement", c.RequirementText)))
+			fmt.Fprintf(w, "    %s\n", renderMetadata("Requirement", c.RequirementText))
 		}
 	}
 	return nil
