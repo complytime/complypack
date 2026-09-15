@@ -203,8 +203,8 @@ func writeApplicabilityHuman(
 	result *requirement.ApplicabilityGroupResult,
 ) error {
 	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Applicability: %s", catalogName)))
-	fmt.Fprintln(w, fmt.Sprintf("  %s  %s", renderMetadata("Groups", len(result.Groups)),
-		renderMetadata("Ungrouped", len(result.Ungrouped))),
+	fmt.Fprintf(w, "  %s  %s\n", renderMetadata("Groups", len(result.Groups)),
+		renderMetadata("Ungrouped", len(result.Ungrouped)),
 	)
 
 	for _, g := range result.Groups {
