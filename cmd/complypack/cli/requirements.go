@@ -200,7 +200,7 @@ func writeRequirementsHuman(
 	results []requirement.AssessmentRequirementInfo,
 ) error {
 	fmt.Fprintln(w, renderHeader(fmt.Sprintf("Requirements: %s", catalogName)))
-	fmt.Fprintln(w, fmt.Sprintf("  %s", renderMetadata("Count", len(results))))
+	fmt.Fprintf(w, "  %s\n", renderMetadata("Count", len(results)))
 
 	for _, r := range results {
 		fmt.Fprintf(w, "\n  %s %s\n", styleControl.Render(r.ID), styleDim.Render(fmt.Sprintf("(control: %s)", r.ControlID)))
