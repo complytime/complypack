@@ -185,8 +185,8 @@ func writeDeltaHuman(
 	fmt.Fprintln(w, "  "+renderMetadata("Comparisons", len(report.Comparisons)))
 
 	for _, c := range report.Comparisons {
-		fmt.Fprintln(w, fmt.Sprintf("\n  %s / %s", styleControl.Render(c.RequirementID), styleDim.Render(c.Label)))
-		fmt.Fprintln(w, fmt.Sprintf("    %s", renderMetadata("Policy value", c.PolicyValue)))
+		fmt.Fprintf(w, "\n  %s / %s\n", styleControl.Render(c.RequirementID), styleDim.Render(c.Label))
+		fmt.Fprintf(w, "    %s\n", renderMetadata("Policy value", c.PolicyValue))
 		if c.RequirementText != "" {
 			fmt.Fprintln(w, fmt.Sprintf("    %s", renderMetadata("Requirement", c.RequirementText)))
 		}
