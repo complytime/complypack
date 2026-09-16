@@ -15,6 +15,8 @@ const (
 	formatHuman = "human"
 	formatText  = "text"
 	formatJSON  = "json"
+
+	separatorWidth = 50
 )
 
 var (
@@ -30,12 +32,12 @@ var (
 
 // Renders common header for human-readable reports
 func renderHeader(title string) string {
-	return styleTitle.Render(title) + "\n" + styleDim.Render(strings.Repeat("━", 50))
+	return styleTitle.Render(title) + "\n" + styleDim.Render(strings.Repeat("━", separatorWidth))
 }
 
 // Renders common separator for human-readable reports
 func renderSeparator() string {
-	return styleDim.Render(strings.Repeat("─", 50))
+	return styleDim.Render(strings.Repeat("─", separatorWidth))
 }
 
 // Renders human-readable report metadata
