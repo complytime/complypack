@@ -1,0 +1,8 @@
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+reason = """\
+  golang.org/x/crypto/openpgp is a deprecated, unmaintained package with no \
+  fix version (see https://go.dev/issue/44226). complypack does not import \
+  openpgp — confirmed via govulncheck. The module is pulled in transitively \
+  by OPA, Regal, and JWX, which only use x/crypto/pbkdf2.\
+  """
