@@ -9,7 +9,7 @@ require (
 	github.com/gemaraproj/go-gemara v0.10.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/onsi/ginkgo/v2 v2.32.2
+	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.43.0
 	github.com/open-policy-agent/opa v1.20.2
 	github.com/open-policy-agent/regal v0.42.0
