@@ -40,7 +40,7 @@ jobs:
     uses: complytime/org-infra/.github/workflows/reusable_release_preflight.yml@bd3718a218d649b093269fe4a979c4a4632dfad2 # v0.8.0
     with:
       tag: ${{ inputs.tag }}
-      ci_checks: '["Test (1.26)", "Module Sync Check", "Standardized CI / Run linters"]'
+      ci_checks: '["Test", "Module Sync Check", "Standardized CI / Run linters"]'
       skip_semver_check: ${{ inputs.skip_semver_check }}
       skip_ci_checks: ${{ inputs.skip_ci_checks }}
       skip_unreleased_check: ${{ inputs.skip_unreleased_check }}
