@@ -1,6 +1,6 @@
 module github.com/complytime/complypack
 
-go 1.26.8
+go 1.26.9
 
 require (
 	cuelang.org/go v0.17.1
