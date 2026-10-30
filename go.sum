@@ -204,8 +204,8 @@ github.com/onsi/ginkgo/v2 v2.33.1 h1:62XfWJbEIjPSCSDYrsCPP/SHcmH7O0M8ne8zfqQ2iz4
 github.com/onsi/ginkgo/v2 v2.33.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
 github.com/onsi/gomega v1.44.0/go.mod h1:e/C2HwaZ1DhvjzXXuFhcR7hY7Sh9pl7MmoWKEjzwcdA=
-github.com/open-policy-agent/opa v1.21.3 h1:dLKnsisFIuICZAWDvG3Us2k/TjGkxOCJ7fWINcnwKHM=
-github.com/open-policy-agent/opa v1.21.3/go.mod h1:mHDS61rXyiZ+9bLINSK634BcbPZcsZChPvSwFVMj88g=
+github.com/open-policy-agent/opa v1.21.4 h1:zTVuy8yd8BM715t8WxMzAIkIX4w1x3MMHEv99IGUY2w=
+github.com/open-policy-agent/opa v1.21.4/go.mod h1:mHDS61rXyiZ+9bLINSK634BcbPZcsZChPvSwFVMj88g=
 github.com/open-policy-agent/regal v0.43.0 h1:3HYxwS+nUbRPwYem8mrZRQSq9ZNT0XzSjdwlWQGOIj0=
 github.com/open-policy-agent/regal v0.43.0/go.mod h1:EH6/kPyhuJcZ78AP4too3Wu1RT5CpjstXy0KK5yyafo=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
