@@ -11,7 +11,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
-	github.com/open-policy-agent/opa v1.22.0
+	github.com/open-policy-agent/opa v1.22.2
 	github.com/open-policy-agent/regal v0.43.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
